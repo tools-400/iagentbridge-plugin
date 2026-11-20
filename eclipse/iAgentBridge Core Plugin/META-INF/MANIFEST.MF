@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: %Bundle-Name
 Bundle-SymbolicName: de.tools400.iagentbridge.core.plugin;singleton:=true
-Bundle-Version: 1.0.0.b002
+Bundle-Version: 1.0.0.r
 Bundle-Activator: de.tools400.iagentbridge.IAgentBridgePlugin
 Bundle-Vendor: Tools/400
 Bundle-Localization: plugin

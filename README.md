@@ -28,13 +28,12 @@ RDi as tools - with the settings, that apply in RDi.
 
 ## Installation
 
-There is no update site yet. Install the plug-in from its sources:
+1. Choose *Help > Install New Software...* in RDi.
+2. Add the update site `https://tools-400.github.io/iagentbridge/update-site/eclipse/rdi8.0/` and
+   select *iAgentBridge*.
+3. Finish the wizard and restart RDi. The *Error Log* view shows the address of the server.
 
-1. Clone the repository into the RDi workspace and import the projects of the folders `eclipse`
-   and `build` with *File > Import... > General > Existing Projects into Workspace*.
-2. Choose *File > Export... > Plug-in Development > Deployable plug-ins and fragments*, select
-   `de.tools400.iagentbridge.core.plugin` and the destination *Install into host*.
-3. Restart RDi. The *Error Log* view shows the address of the server.
+Home page: https://tools-400.github.io/iagentbridge/.
 
 ## Usage
 

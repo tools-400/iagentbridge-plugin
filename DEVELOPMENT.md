@@ -15,6 +15,9 @@ How the plug-in works, how to add a tool and how to run the tests. For its use, 
     tests.
   * `eclipse/iAgentBridge Update Site`: *Build All* in `site.xml`.
   * `build/iAgentBridge Build`: the release script.
+* To install the plug-in from the sources into the running RDi, choose *File > Export... >
+  Plug-in Development > Deployable plug-ins and fragments*, select
+  `de.tools400.iagentbridge.core.plugin` and the destination *Install into host*, then restart RDi.
 * Java 8 byte code, so that the plug-in runs in RDi 9.6.
 * The plug-in uses internal classes of JDT (`CleanUpRefactoring`, `JavaPlugin`), which are the
   only way to run Clean Up like the menu. RDi shows *Discouraged access* warnings for them.
@@ -30,8 +33,8 @@ How the plug-in works, how to add a tool and how to run the tests. For its use, 
   `iRPGFormatter iAgentBridge Plugin` (repository `irpgformatter-plugin`), so that a test instance
   offers the tool `format_rpg`, too.
 * Release: `build/iAgentBridge Build/build/build.xml` (same script as IFS Projects, iRPGFormatter,
-  iRPGUnit, iSphere, JCRCMDS and Rapid Fire, settings in `build.properties`: beta version, no
-  manual, no Eclipse Marketplace). Update site and home page go to `docs/` of the repository
+  iRPGUnit, iSphere, JCRCMDS and Rapid Fire, settings in `build.properties`: no manual, no
+  Eclipse Marketplace). Update site and home page go to `docs/` of the repository
   `iagentbridge` (GitHub Pages). `.github/workflows` tags a release version and mirrors the
   release into that repository.
 
