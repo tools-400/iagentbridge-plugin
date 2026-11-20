@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="de.tools400.iagentbridge.core.feature"
+      label="iAgentBridge"
+      version="1.0.0.b001"
+      provider-name="Tools/400">
+
+   <description url="https://tools-400.github.io/iagentbridge/">
+      %description
+   </description>
+
+   <copyright url="https://tools-400.github.io/iagentbridge/">
+      %copyright
+   </copyright>
+
+   <license url="http://www.eclipse.org/legal/cpl-v10.html">
+      %license
+   </license>
+
+   <url>
+      <update label="iAgentBridge - Remote Update Site" url="https://tools-400.github.io/iagentbridge/update-site/eclipse/rdi8.0/"/>
+   </url>
+
+   <plugin
+         id="de.tools400.iagentbridge.core.plugin"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+</feature>

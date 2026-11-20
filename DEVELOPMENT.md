@@ -1,14 +1,19 @@
-# RDi MCP Server – Developer notes
+# iAgentBridge – Developer notes
 
 How the plug-in works, how to add a tool and how to run the tests. For its use, see
 [USAGE.md](USAGE.md), for its installation [README.md](README.md).
 
 ## Setup
 
-* Clone the repository into the RDi workspace and import the projects of the folder `eclipse`.
-  The target platform is the running platform (RDi).
-* `eclipse/RDi MCP Core Plugin` (`de.tools400.rdimcp.core.plugin`) is the plug-in,
-  `eclipse/RDi MCP JUnit` (`de.tools400.rdimcp.junit`) is a fragment with the unit tests.
+* Clone the repository into the RDi workspace and import the projects of the folders `eclipse`
+  and `build`. The target platform is the running platform (RDi).
+* Projects:
+  * `eclipse/iAgentBridge Core Plugin` (`de.tools400.iagentbridge.core.plugin`) is the plug-in,
+    with `eclipse/iAgentBridge Core Feature` the product.
+  * `eclipse/iAgentBridge JUnit` (`de.tools400.iagentbridge.junit`) is a fragment with the unit
+    tests.
+  * `eclipse/iAgentBridge Update Site`: *Build All* in `site.xml`.
+  * `build/iAgentBridge Build`: the release script.
 * Java 8 byte code, so that the plug-in runs in RDi 9.6.
 * The plug-in uses internal classes of JDT (`CleanUpRefactoring`, `JavaPlugin`), which are the
   only way to run Clean Up like the menu. RDi shows *Discouraged access* warnings for them.
@@ -16,20 +21,32 @@ How the plug-in works, how to add a tool and how to run the tests. For its use, 
   does not export it, so the project settings report the access as a warning instead of an error.
   At runtime Equinox loads it from the JRE, because the Eclipse launcher enables
   `osgi.compatibility.bootdelegation` by default.
+* Launch configurations: one project per RDi version, `eclipse/iAgentBridge Launches (RDi 9.6)`,
+  `(RDi 9.8)` and `(RDi 9.9)`, German and English. Import only the project of the running RDi
+  version. They are the launch configurations of IFS Projects plus the bundles of iAgentBridge and
+  `-Diagentbridge.port=39196`, `39198` or `39199`, so that a test instance does not take the port
+  of the RDi it was started from.
+* Release: `build/iAgentBridge Build/build/build.xml` (same script as IFS Projects, iRPGFormatter,
+  iRPGUnit, iSphere, JCRCMDS and Rapid Fire, settings in `build.properties`: beta version, no
+  manual, no Eclipse Marketplace). Update site and home page go to `docs/` of the repository
+  `iagentbridge` (GitHub Pages). `.github/workflows` tags a release version and mirrors the
+  release into that repository.
 
 ## Architecture
 
-Packages of `RDi MCP Core Plugin`:
+Packages of `iAgentBridge Core Plugin`:
 
 | Package | Content |
 |---|---|
-| `de.tools400.rdimcp` | `RdiMcpPlugin` (activator, starts and stops the server), `RdiMcpStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token) |
-| `de.tools400.rdimcp.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `IMcpTool`, `McpToolResult`, `ToolArguments` |
-| `de.tools400.rdimcp.tools` | the tools: `CleanUpTool`, `WorkspaceInfoTool` and their helpers |
+| `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `Messages` |
+| `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `IMcpTool`, `McpToolResult`, `ToolArguments` |
+| `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `WorkspaceInfoTool` and their helpers |
+| `de.tools400.iagentbridge.preferences` | `Preferences` and their defaults |
+| `de.tools400.iagentbridge.preferencepages` | `IAgentBridgePreferencePage` |
 
-`ServerSettings` and the package `mcp` have no Eclipse dependencies, so that the tests run
-outside of RDi. Gson is imported with `Import-Package` from RDi (2.2.4 and 2.8.2 in RDi 9.6), so
-the code uses only the API of Gson 2.2.4, e.g. `new JsonParser().parse(...)`.
+`ServerSettings`, `ClientCommands` and the package `mcp` have no Eclipse dependencies, so that
+the tests run outside of RDi. Gson is imported with `Import-Package` from RDi (2.2.4 and 2.8.2 in
+RDi 9.6), so the code uses only the API of Gson 2.2.4, e.g. `new JsonParser().parse(...)`.
 
 ### Protocol
 
@@ -45,6 +62,14 @@ the code uses only the API of Gson 2.2.4, e.g. `new JsonParser().parse(...)`.
   exception with its class names and messages.
 * A single thread handles the requests one after the other, so that two tools never run at the
   same time.
+
+### Settings
+
+* The preferences (`serverEnabled`, `port`) are stored in the instance scope, i.e. per workspace.
+* `ServerSettings` takes the port of the system property `iagentbridge.port`, if it is set, else
+  the one of the preferences, and the token of `iagentbridge.token` or else of the token file.
+* *Apply* on the preference page restarts the server, if the start or the port changed, or if
+  the server is not running. *New Token* writes a new token and restarts a running server.
 
 ### Clean Up
 
@@ -62,18 +87,20 @@ here: it checks the keys of the save actions (`sp_...`).
 
 1. Implement `IMcpTool`: name, description for the agent, JSON schema of the arguments and
    `execute()`. Throw an `IllegalArgumentException` for invalid arguments.
-2. Add the tool to the list in `RdiMcpPlugin.startServer()`.
+2. Add the tool to the list in `IAgentBridgePlugin.startServer()`.
 
 ## Tests
 
-The tests in `eclipse/RDi MCP JUnit` use no Eclipse types; run them with *Run As > JUnit Test*.
-`McpHttpServerTest` starts the server on a free port and sends raw HTTP requests, because
-`HttpURLConnection` drops the header `Origin`.
+The tests in `eclipse/iAgentBridge JUnit` use no Eclipse types; run them with *Run As > JUnit
+Test*. `McpHttpServerTest` starts the server on a free port and sends raw HTTP requests, because
+`HttpURLConnection` drops the header `Origin`. `CheckNLSMessages` (launch in
+`eclipse/iAgentBridge JUnit/launches`) checks, that `messages.properties` and
+`messages_de.properties` have exactly the keys of `Messages`.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
-`C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info` and run
-`org.junit.runner.JUnitCore` with Gson, JUnit and Hamcrest of `C:\IBM\SDPShared\plugins` on the
-classpath.
+`C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the
+`messages*.properties` into the output and run `org.junit.runner.JUnitCore` with Gson, JUnit,
+Hamcrest and `org.eclipse.osgi` (for `NLS`) of `C:\IBM\SDPShared\plugins` on the classpath.
 
 A test with a real client: start an `McpHttpServer` with a test tool and let Claude Code call it
 with a configuration file of its own, without changing the configuration of the user:

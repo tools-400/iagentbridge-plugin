@@ -1,8 +1,8 @@
-# RDi MCP Server
+# iAgentBridge
 
 *Lets AI agents like Claude Code use functions of RDi.*
 
-RDi MCP Server is a plug-in for IBM Rational Developer for i (RDi). It runs a server of the Model
+iAgentBridge is a plug-in for IBM Rational Developer for i (RDi). It runs a server of the Model
 Context Protocol (MCP) inside RDi, so that an AI agent, e.g. Claude Code, can call functions of
 RDi as tools - with the settings, that apply in RDi.
 
@@ -13,6 +13,8 @@ RDi as tools - with the settings, that apply in RDi.
   Clean Up changed.
 * **Workspace information**: tells the agent, which RDi, workspace and Java projects it talks to
   and which clean-up profile applies to each project.
+* **Preference page**: start of the server, port, token and the ready-made command, that
+  registers the server in Claude Code.
 * **Local and protected**: the server listens on `127.0.0.1` only and requires a token.
 * **One server per RDi**: each RDi instance can run its own server on its own port.
 
@@ -25,16 +27,15 @@ RDi as tools - with the settings, that apply in RDi.
 
 There is no update site yet. Install the plug-in from its sources:
 
-1. Clone the repository into the RDi workspace and import the projects of the folder `eclipse`
-   with *File > Import... > General > Existing Projects into Workspace*.
+1. Clone the repository into the RDi workspace and import the projects of the folders `eclipse`
+   and `build` with *File > Import... > General > Existing Projects into Workspace*.
 2. Choose *File > Export... > Plug-in Development > Deployable plug-ins and fragments*, select
-   `de.tools400.rdimcp.core.plugin` and the destination *Install into host*.
+   `de.tools400.iagentbridge.core.plugin` and the destination *Install into host*.
 3. Restart RDi. The *Error Log* view shows the address of the server.
 
 ## Usage
 
-[USAGE.md](USAGE.md) describes how to connect an MCP client, the tools and the settings of the
-server.
+[USAGE.md](USAGE.md) describes how to connect an MCP client, the tools and the preferences.
 
 ## For developers
 

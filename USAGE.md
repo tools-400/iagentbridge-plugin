@@ -1,23 +1,25 @@
-# RDi MCP Server – Usage
+# iAgentBridge – Usage
 
-How to connect an MCP client to RDi and how to use the tools. For what the plug-in is for, its
-requirements and how to install it, see [README.md](README.md).
+How to connect an MCP client to RDi, how to use the tools and how to set up the server. For what
+the plug-in is for, its requirements and how to install it, see [README.md](README.md).
 
 ## Quick start
 
 1. Install the plug-in and restart RDi. The *Error Log* view shows the message
-   `RDi MCP server listening on http://127.0.0.1:39096/mcp, token: ...`.
-2. Register the server in Claude Code (PowerShell), with a name of your choice, e.g. `rdi096`:
+   `iAgentBridge server listening on http://127.0.0.1:39096/mcp, token: ...`.
+2. Open *Window > Preferences > iAgentBridge* and press *Copy* next to the command for Claude Code.
+3. Run the command in PowerShell. It registers the server in Claude Code for all your projects,
+   under a name like `rdi096` for RDi 9.6:
 
    ```powershell
-   claude mcp add --scope user --transport http rdi096 http://127.0.0.1:39096/mcp --header "Authorization: Bearer $(Get-Content $HOME\.rdimcp\token)"
+   claude mcp add --scope user --transport http rdi096 http://127.0.0.1:39096/mcp --header "Authorization: Bearer $(Get-Content 'C:\Users\<user>\.iagentbridge\token')"
    ```
 
-3. Start a new Claude Code session. The tools are named `mcp__rdi096__clean_up` and
+4. Start a new Claude Code session. The tools are named `mcp__rdi096__clean_up` and
    `mcp__rdi096__workspace_info`. Check the connection with `claude mcp get rdi096`.
 
 The name is the name of the entry in the configuration of Claude Code (`~/.claude.json` with
-`--scope user`); the plug-in does not know it. Remove the entry with
+`--scope user`); the plug-in only suggests it. Remove the entry with
 `claude mcp remove rdi096 -s user`.
 
 ## Tools
@@ -56,28 +58,44 @@ workspace location, server URL and the open Java projects with their locations a
 profile, e.g. `iSphere Clean Up Profile (Helios) (project settings)`. Use it to check, which RDi
 and workspace an agent talks to. It has no arguments.
 
-## Settings
+## Preferences
 
-The server is configured with system properties, e.g. in `eclipse.ini` after `-vmargs`:
+*Window > Preferences > iAgentBridge*. The preferences are stored in the workspace, so every RDi
+version with a workspace of its own can use its own port.
 
-| Property | Default | Content |
+| Preference | Default | Content |
 |---|---|---|
-| `rdimcp.port` | `39096` | port of the server |
-| `rdimcp.token` | content of `%USERPROFILE%\.rdimcp\token` | token, that the client must send as `Authorization: Bearer <token>` |
+| *Start the server* | on | starts the server, when RDi starts and when you press *Apply* |
+| *Port* | `39096` | port of the server on `127.0.0.1`; every RDi instance needs a port of its own |
 
-Without `rdimcp.token`, the plug-in reads the token from `%USERPROFILE%\.rdimcp\token`. If the
-file does not exist, the plug-in creates it with a random token. All RDi instances of the user
-share the file.
+*Apply* restarts the server, if the start or the port changed. The group *Connection* shows:
 
-## Several RDi instances
+* **Status**: the address of the running server, *Stopped*, or the error of the last start, e.g.
+  a port that another RDi instance uses already.
+* **Token**: the token file `%USERPROFILE%\.iagentbridge\token`. The plug-in creates it with a
+  random token at the first start; all RDi instances of the user share it. *New Token* replaces
+  the token; register the clients again afterwards.
+* **Command for Claude Code**: the command of the quick start, with the port of this RDi. *Copy*
+  copies it to the clipboard.
 
-Each RDi instance needs its own port. Set `-Drdimcp.port=...` in the `eclipse.ini` of the other
-RDi versions and register each server under its own name, e.g. `rdi099` for RDi 9.9.
+## System properties
+
+System properties override the preferences, e.g. in `eclipse.ini` after `-vmargs` or in the VM
+arguments of a launch configuration:
+
+| Property | Content |
+|---|---|
+| `iagentbridge.port` | port of the server; the preference page shows it and disables the field *Port* |
+| `iagentbridge.token` | token, that the client must send as `Authorization: Bearer <token>`, instead of the token file |
+
+## Test instances
 
 A test instance started from the workspace (*Run As > Eclipse Application*) starts a server, too,
-if the plug-in is part of the launch configuration. Then either set `-Drdimcp.port=...` in the VM
-arguments of the launch configuration or remove the plug-in from it. Otherwise the instance, that
-starts first, gets the port, and the other one writes an error into its *Error Log* view.
+if the plug-in is part of the launch configuration. The launch configurations of iAgentBridge set
+the ports `39196`, `39198` and `39199` for RDi 9.6, 9.8 and 9.9. In other launch configurations
+either set `-Diagentbridge.port=...` or remove the plug-in. Otherwise the instance, that starts
+first, gets the port, and the other one shows the error on the preference page and in the *Error
+Log* view.
 
 ## Security
 
