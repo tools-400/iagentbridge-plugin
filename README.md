@@ -23,7 +23,7 @@ RDi as tools - with the settings, that apply in RDi.
 
 ## Requirements
 
-* RDi 9.6. RDi 9.8 and 9.9 are not tested yet.
+* RDi 9.6, 9.8 or 9.9.
 * An MCP client with the transport *Streamable HTTP* and its own HTTP headers, e.g. Claude Code.
 
 ## Installation
