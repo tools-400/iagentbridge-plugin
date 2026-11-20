@@ -78,13 +78,20 @@ version with a workspace of its own can use its own port.
 
 | Preference | Default | Content |
 |---|---|---|
-| *Start the server* | on | starts the server, when RDi starts and when you press *Apply* |
-| *Port* | `39096` | port of the server on `127.0.0.1`; every RDi instance needs a port of its own |
+| *Start the server when RDi starts* | on | starts the server automatically, when RDi starts |
+| *Port* | `39096` for RDi 9.6, `39098` for 9.8, `39099` for 9.9 | port of the server on `127.0.0.1`; every RDi instance needs a port of its own |
 
-*Apply* restarts the server, if the start or the port changed. The group *Connection* shows:
+The default port depends on the version of RDi, so that RDi 9.6, 9.8 and 9.9 can run their servers
+at the same time. It matches the suggested name of the server in Claude Code, e.g. `rdi098` and
+port `39098`.
 
-* **Status**: the address of the running server, *Stopped*, or the error of the last start, e.g.
-  a port that another RDi instance uses already.
+*Apply* restarts a running server, if its port changed. The check box neither starts nor stops the
+server: it only tells, whether RDi starts it. The group *Connection* shows:
+
+* **Status**: a green circle and the address of the running server, a gray circle and *Stopped*,
+  or a red circle and the error of the last start, e.g. *Port 39098 is in use*, when another RDi
+  instance uses the port already. *Start* saves the settings and starts the server now, e.g. after
+  the port has become free or has been changed; it is active only while the server does not run.
 * **Token**: the token file `%USERPROFILE%\.iagentbridge\token`. The plug-in creates it with a
   random token at the first start; all RDi instances of the user share it. *New Token* replaces
   the token; register the clients again afterwards.

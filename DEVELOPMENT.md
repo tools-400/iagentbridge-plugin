@@ -70,10 +70,15 @@ RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e
 ### Settings
 
 * The preferences (`serverEnabled`, `port`) are stored in the instance scope, i.e. per workspace.
+* The default of `port` is `ServerSettings.defaultPort()` of the version of RDi (the version of the
+  bundle, that defines the product): 39000 + 10 × major + minor, e.g. 39096 for 9.6.13, the same
+  rule as the server name `rdi096` of `ClientCommands`. Without a known version it is 39096.
 * `ServerSettings` takes the port of the system property `iagentbridge.port`, if it is set, else
   the one of the preferences, and the token of `iagentbridge.token` or else of the token file.
-* *Apply* on the preference page restarts the server, if the start or the port changed, or if
-  the server is not running. *New Token* writes a new token and restarts a running server.
+* `serverEnabled` is read only by `IAgentBridgeStartup` (`startServer()`). *Apply* on the
+  preference page restarts a running server, if its port changed; *Start* saves and calls
+  `startServerNow()`, which ignores `serverEnabled`. There is no stop: a server runs until RDi
+  ends. *New Token* writes a new token and restarts a running server.
 
 ### Clean Up
 

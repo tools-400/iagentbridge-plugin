@@ -9,12 +9,14 @@
 package de.tools400.iagentbridge;
 
 import java.io.IOException;
+import java.net.BindException;
 import java.util.List;
 
 import org.eclipse.core.runtime.IProduct;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Version;
@@ -81,21 +83,35 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
     }
 
     /**
-     * Starts the MCP server, if it is enabled in the preferences and not
-     * already running. Errors are written to the error log.
+     * Starts the MCP server, when RDi starts, if the preferences say so and it
+     * is not already running. Errors are written to the error log.
      */
     public synchronized void startServer() {
 
-        if (server != null || !Preferences.getInstance().isServerEnabled()) {
+        if (!Preferences.getInstance().isServerEnabled()) {
+            return;
+        }
+
+        startServerNow();
+    }
+
+    /**
+     * Starts the MCP server now, unless it is already running, whether or not
+     * it is started when RDi starts. Errors are written to the error log.
+     */
+    public synchronized void startServerNow() {
+
+        if (server != null) {
             return;
         }
 
         serverError = null;
+        int port = -1;
 
         try {
 
             ServerSettings settings = getServerSettings();
-            int port = settings.getPort();
+            port = settings.getPort();
             String url = "http://127.0.0.1:" + port + McpHttpServer.PATH; //$NON-NLS-1$
 
             ToolCollection tools = createTools(url);
@@ -109,6 +125,8 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
             logInfo("iAgentBridge server listening on " + url + ", token: " + settings.getTokenSource() + ", tools: " //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
                 + join(tools.getNames()));
 
+        } catch (BindException e) {
+            setServerError(NLS.bind(Messages.Error_Port_in_use_A, Integer.toString(port)), e);
         } catch (IOException e) {
             setServerError(e);
         } catch (RuntimeException e) {
@@ -163,12 +181,11 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
     }
 
     /**
-     * Restarts the MCP server, e.g. after the preferences have been changed.
+     * Restarts the MCP server, e.g. after its port or token has been changed.
      */
     public synchronized void restartServer() {
         stopServer();
-        serverError = null;
-        startServer();
+        startServerNow();
     }
 
     /**
@@ -197,18 +214,52 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
      */
     public String suggestServerName() {
 
-        IProduct product = Platform.getProduct();
-        if (product == null || product.getDefiningBundle() == null) {
+        Version version = getRdiVersion();
+        if (version == null) {
             return ClientCommands.DEFAULT_SERVER_NAME;
         }
-
-        Version version = product.getDefiningBundle().getVersion();
 
         return ClientCommands.suggestServerName(version.getMajor(), version.getMinor());
     }
 
+    /**
+     * Returns the default port of the server for this version of RDi, e.g.
+     * 39096 for RDi 9.6.
+     *
+     * @return default port
+     */
+    public int getDefaultPort() {
+
+        Version version = getRdiVersion();
+        if (version == null) {
+            return ServerSettings.DEFAULT_PORT;
+        }
+
+        return ServerSettings.defaultPort(version.getMajor(), version.getMinor());
+    }
+
+    /**
+     * Returns the version of RDi: the version of the bundle, that defines the
+     * product, e.g. 9.6.13 for RDi 9.6.0.13.
+     *
+     * @return version or <code>null</code>, if it is not known
+     */
+    private static Version getRdiVersion() {
+
+        IProduct product = Platform.getProduct();
+        if (product == null || product.getDefiningBundle() == null) {
+            return null;
+        }
+
+        return product.getDefiningBundle().getVersion();
+    }
+
     private void setServerError(Exception anException) {
-        serverError = anException.getMessage() == null ? anException.getClass().getName() : anException.getMessage();
+        setServerError(anException.getMessage() == null ? anException.getClass().getName() : anException.getMessage(), anException);
+    }
+
+    private void setServerError(String aMessage, Exception anException) {
+        serverError = aMessage;
         logError("Could not start the iAgentBridge server: " + serverError, anException); //$NON-NLS-1$
     }
 

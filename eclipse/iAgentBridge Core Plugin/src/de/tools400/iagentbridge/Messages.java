@@ -27,6 +27,9 @@ public class Messages extends NLS {
     public static String Status_Running_on_A;
     public static String Status_Stopped;
     public static String Status_Error_A;
+    public static String Error_Port_in_use_A;
+    public static String Label_Start;
+    public static String Tooltip_Start;
     public static String Label_Token_colon;
     public static String Label_Token_set_by_system_property_A;
     public static String Label_New_token;

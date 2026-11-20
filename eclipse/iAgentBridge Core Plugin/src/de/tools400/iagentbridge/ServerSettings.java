@@ -37,8 +37,11 @@ public class ServerSettings {
     /** System property with the token of the server */
     public static final String PROPERTY_TOKEN = "iagentbridge.token"; //$NON-NLS-1$
 
-    /** Default port */
+    /** Default port, if the version of RDi is not known */
     public static final int DEFAULT_PORT = 39096;
+
+    /** Base of the default port, to which the version of RDi is added */
+    private static final int DEFAULT_PORT_BASE = 39000;
 
     /** Lowest valid port */
     public static final int MIN_PORT = 1;
@@ -62,6 +65,25 @@ public class ServerSettings {
     public ServerSettings(Properties aProperties, int aPreferencePort) {
         properties = aProperties;
         preferencePort = aPreferencePort;
+    }
+
+    /**
+     * Returns the default port for a version of RDi, e.g. 39096 for RDi 9.6 and
+     * 39099 for RDi 9.9, so that the RDi versions of a user do not compete for
+     * the same port. The port matches the suggested name of the server, e.g.
+     * 'rdi096'.
+     *
+     * @param aMajor - major version of RDi
+     * @param aMinor - minor version of RDi
+     * @return default port
+     */
+    public static int defaultPort(int aMajor, int aMinor) {
+
+        if (aMajor < 1 || aMajor > 99 || aMinor < 0 || aMinor > 9) {
+            return DEFAULT_PORT;
+        }
+
+        return DEFAULT_PORT_BASE + aMajor * 10 + aMinor;
     }
 
     /**

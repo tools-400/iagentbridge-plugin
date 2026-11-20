@@ -45,7 +45,12 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
     private static final int NUM_COLUMNS = 3;
     private static final int COMMAND_WIDTH_HINT = 400;
 
+    /** Black circle, colored by the status of the server */
+    private static final String STATUS_SYMBOL = "●"; //$NON-NLS-1$
+
+    private Label statusSymbol;
     private Label statusLabel;
+    private Button startButton;
     private Text tokenText;
     private Button newTokenButton;
     private Text commandText;
@@ -91,8 +96,21 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
         connection.setLayout(new GridLayout(NUM_COLUMNS, false));
 
         new Label(connection, SWT.NONE).setText(Messages.Label_Status_colon);
-        statusLabel = new Label(connection, SWT.NONE);
-        statusLabel.setLayoutData(createSpanData(NUM_COLUMNS - 1));
+        Composite status = new Composite(connection, SWT.NONE);
+        GridLayout statusLayout = new GridLayout(2, false);
+        statusLayout.marginWidth = 0;
+        statusLayout.marginHeight = 0;
+        status.setLayout(statusLayout);
+        status.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        statusSymbol = new Label(status, SWT.NONE);
+        statusSymbol.setText(STATUS_SYMBOL);
+        statusLabel = new Label(status, SWT.NONE);
+        statusLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        startButton = new Button(connection, SWT.PUSH);
+        startButton.setText(Messages.Label_Start);
+        startButton.setToolTipText(Messages.Tooltip_Start);
+        startButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        startButton.addListener(SWT.Selection, event -> startServer());
 
         new Label(connection, SWT.NONE).setText(Messages.Label_Token_colon);
         tokenText = new Text(connection, SWT.BORDER | SWT.READ_ONLY);
@@ -120,25 +138,40 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
         updateConnection();
     }
 
+    /**
+     * Saves the preferences. A running server is restarted, if its port has
+     * been changed. The check box only tells, whether the server is started,
+     * when RDi starts: it neither starts nor stops the server now.
+     */
     @Override
     public boolean performOk() {
 
-        boolean enabledBefore = Preferences.getInstance().isServerEnabled();
         int portBefore = Preferences.getInstance().getPort();
 
         boolean result = super.performOk();
 
         IAgentBridgePlugin plugin = IAgentBridgePlugin.getDefault();
-        boolean enabled = Preferences.getInstance().isServerEnabled();
-        if (!enabled) {
-            plugin.stopServer();
-        } else if (!enabledBefore || portBefore != Preferences.getInstance().getPort() || plugin.getServerUrl() == null) {
+        if (plugin.getServerUrl() != null && portBefore != Preferences.getInstance().getPort()) {
             plugin.restartServer();
         }
 
         updateConnection();
 
         return result;
+    }
+
+    /**
+     * Saves the preferences, e.g. a changed port, and starts the server.
+     */
+    private void startServer() {
+
+        if (!isValid()) {
+            return;
+        }
+
+        performOk();
+        IAgentBridgePlugin.getDefault().startServerNow();
+        updateConnection();
     }
 
     private void renewToken() {
@@ -182,12 +215,13 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
         ServerSettings settings = plugin.getServerSettings();
 
         String url = plugin.getServerUrl();
+        startButton.setEnabled(url == null);
         if (url != null) {
-            statusLabel.setText(NLS.bind(Messages.Status_Running_on_A, url));
+            setStatus(SWT.COLOR_DARK_GREEN, SWT.COLOR_WIDGET_FOREGROUND, NLS.bind(Messages.Status_Running_on_A, url));
         } else if (plugin.getServerError() != null) {
-            statusLabel.setText(NLS.bind(Messages.Status_Error_A, plugin.getServerError()));
+            setStatus(SWT.COLOR_RED, SWT.COLOR_RED, NLS.bind(Messages.Status_Error_A, plugin.getServerError()));
         } else {
-            statusLabel.setText(Messages.Status_Stopped);
+            setStatus(SWT.COLOR_DARK_GRAY, SWT.COLOR_WIDGET_FOREGROUND, Messages.Status_Stopped);
         }
 
         String tokenFile = null;
@@ -208,11 +242,21 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
         statusLabel.getParent().layout(true);
     }
 
+    /**
+     * Shows the status: a circle in the color of the status (green: running,
+     * gray: stopped, red: error) and the text.
+     */
+    private void setStatus(int aSymbolColor, int aTextColor, String aText) {
+        statusSymbol.setForeground(statusSymbol.getDisplay().getSystemColor(aSymbolColor));
+        statusLabel.setForeground(statusLabel.getDisplay().getSystemColor(aTextColor));
+        statusLabel.setText(aText);
+    }
+
     private static String getPortForCommand(ServerSettings aSettings) {
         try {
             return String.valueOf(aSettings.getPort());
         } catch (IllegalArgumentException e) {
-            return String.valueOf(ServerSettings.DEFAULT_PORT);
+            return String.valueOf(IAgentBridgePlugin.getDefault().getDefaultPort());
         }
     }
 

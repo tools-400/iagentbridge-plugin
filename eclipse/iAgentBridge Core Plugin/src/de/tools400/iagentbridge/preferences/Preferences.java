@@ -28,7 +28,6 @@ public final class Preferences {
     public static final String PORT = "port"; //$NON-NLS-1$
 
     private static final boolean DEFAULT_SERVER_ENABLED = true;
-    private static final int DEFAULT_PORT = ServerSettings.DEFAULT_PORT;
 
     private Preferences() {
         // Singleton class
@@ -48,7 +47,8 @@ public final class Preferences {
 
     public void initializeDefaultPreferences() {
         preferenceStore.setDefault(SERVER_ENABLED, DEFAULT_SERVER_ENABLED);
-        preferenceStore.setDefault(PORT, DEFAULT_PORT);
+        // The default port depends on the version of RDi, e.g. 39096 for 9.6.
+        preferenceStore.setDefault(PORT, IAgentBridgePlugin.getDefault().getDefaultPort());
     }
 
     /*
@@ -63,7 +63,7 @@ public final class Preferences {
 
         int port = preferenceStore.getInt(PORT);
         if (port < ServerSettings.MIN_PORT || port > ServerSettings.MAX_PORT) {
-            return DEFAULT_PORT;
+            return preferenceStore.getDefaultInt(PORT);
         }
 
         return port;

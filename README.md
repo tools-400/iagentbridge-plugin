@@ -18,7 +18,8 @@ RDi as tools - with the settings, that apply in RDi.
 * **Preference page**: start of the server, port, token and the ready-made command, that
   registers the server in Claude Code.
 * **Local and protected**: the server listens on `127.0.0.1` only and requires a token.
-* **One server per RDi**: each RDi instance can run its own server on its own port.
+* **One server per RDi**: each RDi instance can run its own server on its own port; RDi 9.6, 9.8
+  and 9.9 get different default ports.
 
 ## Requirements
 

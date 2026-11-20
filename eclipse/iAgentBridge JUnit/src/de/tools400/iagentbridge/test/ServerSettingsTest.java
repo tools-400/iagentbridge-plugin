@@ -81,6 +81,21 @@ public class ServerSettingsTest {
         new ServerSettings(properties, PREFERENCE_PORT).getPort();
     }
 
+    @Test
+    public void testDefaultPort() {
+        assertEquals(39096, ServerSettings.defaultPort(9, 6));
+        assertEquals(39098, ServerSettings.defaultPort(9, 8));
+        assertEquals(39099, ServerSettings.defaultPort(9, 9));
+        assertEquals(39100, ServerSettings.defaultPort(10, 0));
+    }
+
+    @Test
+    public void testDefaultPort_unknownVersion() {
+        assertEquals(ServerSettings.DEFAULT_PORT, ServerSettings.defaultPort(0, 0));
+        assertEquals(ServerSettings.DEFAULT_PORT, ServerSettings.defaultPort(9, 10));
+        assertEquals(ServerSettings.DEFAULT_PORT, ServerSettings.defaultPort(100, 0));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void testGetPort_preferenceOutOfRange() {
         new ServerSettings(properties, 0).getPort();
