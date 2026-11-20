@@ -918,6 +918,8 @@
         <setEntry value="de.tools400.ifsprojects.strpreprc.junit@default:false"/>
         <setEntry value="de.tools400.ifsprojects.strpreprc.plugin@default:default"/>
         <setEntry value="de.tools400.lpex.irpgformatter.core.plugin@default:default"/>
+        <setEntry value="de.tools400.lpex.irpgformatter.iagentbridge.junit@default:false"/>
+        <setEntry value="de.tools400.lpex.irpgformatter.iagentbridge.plugin@default:default"/>
         <setEntry value="de.tools400.lpex.menuextension.plugin@default:default"/>
         <setEntry value="de.tools400.rpgunit.cmone@default:default"/>
         <setEntry value="de.tools400.rpgunit.core.help@default:default"/>

@@ -9,7 +9,6 @@
 package de.tools400.iagentbridge;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
 import org.eclipse.core.runtime.IProduct;
@@ -20,7 +19,6 @@ import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Version;
 
-import de.tools400.iagentbridge.mcp.IMcpTool;
 import de.tools400.iagentbridge.mcp.McpDispatcher;
 import de.tools400.iagentbridge.mcp.McpHttpServer;
 import de.tools400.iagentbridge.preferences.Preferences;
@@ -40,7 +38,8 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
 
     private static final String INSTRUCTIONS = "Tools of a running IBM Rational Developer for i (RDi, Eclipse) instance. " //$NON-NLS-1$
         + "clean_up runs 'Source > Clean Up' with the clean-up profile of RDi on Java files of the RDi workspace. " //$NON-NLS-1$
-        + "workspace_info tells which RDi, workspace and projects this server belongs to."; //$NON-NLS-1$
+        + "workspace_info tells which RDi, workspace and projects this server belongs to. " //$NON-NLS-1$
+        + "Other installed plug-ins may add further tools, which describe themselves."; //$NON-NLS-1$
 
     /** The shared instance */
     private static IAgentBridgePlugin plugin;
@@ -99,21 +98,54 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
             int port = settings.getPort();
             String url = "http://127.0.0.1:" + port + McpHttpServer.PATH; //$NON-NLS-1$
 
-            List<IMcpTool> tools = Arrays.<IMcpTool> asList(new CleanUpTool(), new WorkspaceInfoTool(url));
-            McpDispatcher dispatcher = new McpDispatcher(SERVER_NAME, getBundle().getVersion().toString(), INSTRUCTIONS, tools);
+            ToolCollection tools = createTools(url);
+            McpDispatcher dispatcher = new McpDispatcher(SERVER_NAME, getBundle().getVersion().toString(), INSTRUCTIONS, tools.getTools());
 
             McpHttpServer httpServer = new McpHttpServer(dispatcher, settings.getToken());
             httpServer.start(port);
             server = httpServer;
             serverUrl = url;
 
-            logInfo("iAgentBridge server listening on " + url + ", token: " + settings.getTokenSource()); //$NON-NLS-1$ //$NON-NLS-2$
+            logInfo("iAgentBridge server listening on " + url + ", token: " + settings.getTokenSource() + ", tools: " //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+                + join(tools.getNames()));
 
         } catch (IOException e) {
             setServerError(e);
         } catch (RuntimeException e) {
             setServerError(e);
         }
+    }
+
+    /**
+     * Creates the tools of the server: the tools of iAgentBridge and the tools,
+     * that other plug-ins contribute. The errors of the tools, that are left
+     * out, are written to the error log.
+     */
+    private ToolCollection createTools(String aUrl) {
+
+        ToolCollection tools = new ToolCollection();
+        tools.add(new CleanUpTool(), PLUGIN_ID);
+        tools.add(new WorkspaceInfoTool(aUrl), PLUGIN_ID);
+        ContributedTools.addTo(tools);
+
+        for (ToolCollection.ToolError error : tools.getErrors()) {
+            logError(error.getMessage(), error.getCause());
+        }
+
+        return tools;
+    }
+
+    private static String join(List<String> aNames) {
+
+        StringBuilder text = new StringBuilder();
+        for (String name : aNames) {
+            if (text.length() > 0) {
+                text.append(", "); //$NON-NLS-1$
+            }
+            text.append(name);
+        }
+
+        return text.toString();
     }
 
     /**

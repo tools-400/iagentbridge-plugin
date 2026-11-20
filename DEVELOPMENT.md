@@ -1,7 +1,8 @@
 # iAgentBridge – Developer notes
 
 How the plug-in works, how to add a tool and how to run the tests. For its use, see
-[USAGE.md](USAGE.md), for its installation [README.md](README.md).
+[USAGE.md](USAGE.md), for its installation [README.md](README.md), for plug-ins, that add tools,
+[EXTENDING.md](EXTENDING.md).
 
 ## Setup
 
@@ -25,7 +26,9 @@ How the plug-in works, how to add a tool and how to run the tests. For its use, 
   `(RDi 9.8)` and `(RDi 9.9)`, German and English. Import only the project of the running RDi
   version. They are the launch configurations of IFS Projects plus the bundles of iAgentBridge and
   `-Diagentbridge.port=39196`, `39198` or `39199`, so that a test instance does not take the port
-  of the RDi it was started from.
+  of the RDi it was started from. They contain the plug-ins of iRPGFormatter and its plug-in
+  `iRPGFormatter iAgentBridge Plugin` (repository `irpgformatter-plugin`), so that a test instance
+  offers the tool `format_rpg`, too.
 * Release: `build/iAgentBridge Build/build/build.xml` (same script as IFS Projects, iRPGFormatter,
   iRPGUnit, iSphere, JCRCMDS and Rapid Fire, settings in `build.properties`: beta version, no
   manual, no Eclipse Marketplace). Update site and home page go to `docs/` of the repository
@@ -38,15 +41,16 @@ Packages of `iAgentBridge Core Plugin`:
 
 | Package | Content |
 |---|---|
-| `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `Messages` |
-| `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `IMcpTool`, `McpToolResult`, `ToolArguments` |
+| `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `ToolCollection` (the tools of the server), `ContributedTools` (the tools of other plug-ins), `Messages` |
+| `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `IMcpTool`, `McpToolResult`, `ToolArguments`; exported for the tools of other plug-ins |
 | `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `WorkspaceInfoTool` and their helpers |
 | `de.tools400.iagentbridge.preferences` | `Preferences` and their defaults |
 | `de.tools400.iagentbridge.preferencepages` | `IAgentBridgePreferencePage` |
 
-`ServerSettings`, `ClientCommands` and the package `mcp` have no Eclipse dependencies, so that
-the tests run outside of RDi. Gson is imported with `Import-Package` from RDi (2.2.4 and 2.8.2 in
-RDi 9.6), so the code uses only the API of Gson 2.2.4, e.g. `new JsonParser().parse(...)`.
+`ServerSettings`, `ClientCommands`, `ToolCollection` and the package `mcp` have no Eclipse
+dependencies, so that the tests run outside of RDi. Gson is imported with `Import-Package` from
+RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e.g.
+`new JsonParser().parse(...)`.
 
 ### Protocol
 
@@ -83,11 +87,29 @@ from the profile of the workspace (`CleanUpPreferenceUtil.loadOptions`). `CleanU
 describes the profile with the same rule. `CleanUpPreferenceUtil.hasSettingsInScope` is no help
 here: it checks the keys of the save actions (`sp_...`).
 
+### Tools
+
+`IAgentBridgePlugin.createTools()` collects the tools, whenever the server starts: first the tools
+of iAgentBridge, then the tools of the extension point `de.tools400.iagentbridge.core.plugin.tools`
+(`schema/tools.exsd`), which `ContributedTools` creates. `ToolCollection` leaves out a tool, whose
+name is invalid or already taken, or that fails to return its name, description or input schema of
+type `object`; `ContributedTools` leaves out a tool, that cannot be created or does not implement
+`IMcpTool`. Their errors go to the error log, so that one faulty plug-in does not stop the server.
+The info message of the start lists the names of the tools.
+
+The package `de.tools400.iagentbridge.mcp` is exported with `uses:="com.google.gson"`, because
+`IMcpTool` has Gson types in its methods: a plug-in with a tool then gets the same Gson as
+iAgentBridge, although RDi 9.6 has two versions of it. Only `IMcpTool`, `McpToolResult` and
+`ToolArguments` are API, see [EXTENDING.md](EXTENDING.md).
+
 ### Adding a tool
 
 1. Implement `IMcpTool`: name, description for the agent, JSON schema of the arguments and
    `execute()`. Throw an `IllegalArgumentException` for invalid arguments.
-2. Add the tool to the list in `IAgentBridgePlugin.startServer()`.
+2. Add the tool to `IAgentBridgePlugin.createTools()`.
+
+A tool, that belongs to another plug-in, e.g. to iRPGFormatter, lives in that plug-in or in a
+plug-in of its own and uses the extension point, see [EXTENDING.md](EXTENDING.md).
 
 ## Tests
 
@@ -95,7 +117,9 @@ The tests in `eclipse/iAgentBridge JUnit` use no Eclipse types; run them with *R
 Test*. `McpHttpServerTest` starts the server on a free port and sends raw HTTP requests, because
 `HttpURLConnection` drops the header `Origin`. `CheckNLSMessages` (launch in
 `eclipse/iAgentBridge JUnit/launches`) checks, that `messages.properties` and
-`messages_de.properties` have exactly the keys of `Messages`.
+`messages_de.properties` have exactly the keys of `Messages`. `ToolCollectionTest` checks, which
+tools the server accepts: names, descriptions, input schemas, duplicate names and tools, that fail
+to describe themselves.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the

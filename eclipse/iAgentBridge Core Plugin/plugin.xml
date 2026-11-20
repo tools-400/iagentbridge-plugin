@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?eclipse version="3.4"?>
 <plugin>
+
+   <!--
+     ==========================================================================
+       Tools of other plug-ins, see EXTENDING.md
+     ==========================================================================
+   -->
+
+   <extension-point id="tools" name="%ExtensionPoint_Tools" schema="schema/tools.exsd"/>
+
    <extension
          point="org.eclipse.ui.startup">
       <startup

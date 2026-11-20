@@ -13,6 +13,8 @@ RDi as tools - with the settings, that apply in RDi.
   Clean Up changed.
 * **Workspace information**: tells the agent, which RDi, workspace and Java projects it talks to
   and which clean-up profile applies to each project.
+* **Tools of other plug-ins**: other RDi plug-ins can add tools to the server, e.g. `format_rpg` of
+  iRPGFormatter, which formats RPG sources with the settings of RDi.
 * **Preference page**: start of the server, port, token and the ready-made command, that
   registers the server in Claude Code.
 * **Local and protected**: the server listens on `127.0.0.1` only and requires a token.
@@ -41,6 +43,7 @@ There is no update site yet. Install the plug-in from its sources:
 
 How the plug-in works internally, how to add a tool and how to run the tests:
 [DEVELOPMENT.md](DEVELOPMENT.md).
+How to write a plug-in, that adds a tool to the server: [EXTENDING.md](EXTENDING.md).
 
 ## Liability
 

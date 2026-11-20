@@ -58,6 +58,19 @@ workspace location, server URL and the open Java projects with their locations a
 profile, e.g. `iSphere Clean Up Profile (Helios) (project settings)`. Use it to check, which RDi
 and workspace an agent talks to. It has no arguments.
 
+### Tools of other plug-ins
+
+Other RDi plug-ins can add tools to the server. Install them like any other plug-in and restart
+RDi; the agent sees them in a new session, e.g. as `mcp__rdi096__format_rpg`.
+
+| Tool | Plug-in | Content |
+|---|---|---|
+| `format_rpg` | optional feature *iRPGFormatter iAgentBridge* of iRPGFormatter | formats RPG sources like *iFormat* of RDi, see the usage of iRPGFormatter |
+
+The message `iAgentBridge server listening on ...` in the *Error Log* view ends with the names of
+all tools, that the server offers. A tool of another plug-in, that fails to start, is left out;
+the *Error Log* view shows the reason.
+
 ## Preferences
 
 *Window > Preferences > iAgentBridge*. The preferences are stored in the workspace, so every RDi
