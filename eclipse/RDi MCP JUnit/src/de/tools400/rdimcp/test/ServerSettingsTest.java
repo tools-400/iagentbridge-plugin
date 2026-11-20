@@ -1,0 +1,111 @@
+/*******************************************************************************
+ * Copyright (c) 2026 Thomas Raddatz
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Common Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/cpl-v10.html
+ *******************************************************************************/
+
+package de.tools400.rdimcp.test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.Properties;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import de.tools400.rdimcp.ServerSettings;
+
+public class ServerSettingsTest {
+
+    private File home;
+    private Properties properties;
+
+    @Before
+    public void setUp() throws IOException {
+        home = Files.createTempDirectory("rdimcp-test").toFile();
+        properties = new Properties();
+        properties.setProperty("user.home", home.getPath());
+    }
+
+    @After
+    public void tearDown() {
+        delete(home);
+    }
+
+    @Test
+    public void testGetPort_default() {
+        assertEquals(ServerSettings.DEFAULT_PORT, new ServerSettings(properties).getPort());
+    }
+
+    @Test
+    public void testGetPort_property() {
+        properties.setProperty(ServerSettings.PROPERTY_PORT, " 39098 ");
+        assertEquals(39098, new ServerSettings(properties).getPort());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetPort_notANumber() {
+        properties.setProperty(ServerSettings.PROPERTY_PORT, "abc");
+        new ServerSettings(properties).getPort();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetPort_outOfRange() {
+        properties.setProperty(ServerSettings.PROPERTY_PORT, "70000");
+        new ServerSettings(properties).getPort();
+    }
+
+    @Test
+    public void testGetToken_property() throws IOException {
+
+        properties.setProperty(ServerSettings.PROPERTY_TOKEN, " abc ");
+        ServerSettings settings = new ServerSettings(properties);
+
+        assertEquals("abc", settings.getToken());
+        assertEquals("system property rdimcp.token", settings.getTokenSource());
+        assertFalse(settings.getTokenFile().exists());
+    }
+
+    @Test
+    public void testGetToken_created() throws IOException {
+
+        ServerSettings settings = new ServerSettings(properties);
+        String token = settings.getToken();
+
+        assertTrue(token, token.matches("[0-9a-f]{64}"));
+        assertEquals(new File(new File(home, ".rdimcp"), "token"), settings.getTokenFile());
+        assertEquals(settings.getTokenFile().getPath(), settings.getTokenSource());
+        assertEquals(token, new ServerSettings(properties).getToken());
+    }
+
+    @Test
+    public void testGetToken_existingFile() throws IOException {
+
+        File file = new ServerSettings(properties).getTokenFile();
+        file.getParentFile().mkdirs();
+        Files.write(file.toPath(), " 1234\r\n".getBytes(StandardCharsets.US_ASCII));
+
+        assertEquals("1234", new ServerSettings(properties).getToken());
+    }
+
+    private static void delete(File aFile) {
+
+        File[] children = aFile.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                delete(child);
+            }
+        }
+
+        aFile.delete();
+    }
+}
