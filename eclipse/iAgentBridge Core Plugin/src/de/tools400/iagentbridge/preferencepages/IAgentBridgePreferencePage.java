@@ -65,6 +65,11 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
     }
 
     @Override
+    public void setTitle(String title) {
+        super.setTitle("iAgentBridge - " + IAgentBridgePlugin.getDefault().getVersion()); //$NON-NLS-1$
+    }
+
+    @Override
     protected void createFieldEditors() {
 
         ServerSettings settings = IAgentBridgePlugin.getDefault().getServerSettings();
