@@ -81,10 +81,11 @@ RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e
   `MCP-Protocol-Version: 2026-07-28`, gets the `400` of the header check (without the header it
   would get `-32601 Method not found`) and then sends `initialize` without the header.
 * An `IllegalArgumentException` of a tool is returned as a tool error with its message, any other
-  exception with its class names and messages. `arguments`, that are no object, give
-  `-32602 Invalid params`. An exception outside of `execute()`, e.g. of `getDescription()` during
-  `tools/list`, gives `-32603 Internal error` and is written to the error log of RDi with its
-  stack trace (`IMcpErrorLog`, which `IAgentBridgePlugin` passes to `McpDispatcher`).
+  exception with its class names and messages; such an exception is also written to the error log
+  of RDi with its stack trace. `arguments`, that are no object, give `-32602 Invalid params`. An
+  exception outside of `execute()`, e.g. of `getDescription()` during `tools/list`, gives
+  `-32603 Internal error` and is written to the error log as well. The error log is an
+  `IMcpErrorLog`, which `IAgentBridgePlugin` passes to `McpDispatcher`.
 * A single thread handles the requests one after the other, so that two tools never run at the
   same time.
 

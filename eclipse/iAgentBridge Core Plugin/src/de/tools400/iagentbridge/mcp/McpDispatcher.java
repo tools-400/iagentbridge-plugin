@@ -92,8 +92,8 @@ public class McpDispatcher {
      * @param anInstructions - instructions for the AI agent returned by
      *        'initialize' or <code>null</code>
      * @param aTools - tools of the server
-     * @param anErrorLog - log of the internal errors ('-32603') or
-     *        <code>null</code>
+     * @param anErrorLog - log of the internal errors ('-32603') and of the
+     *        exceptions of the tools or <code>null</code>
      */
     public McpDispatcher(String aServerName, String aServerVersion, String anInstructions, List<IMcpTool> aTools, IMcpErrorLog anErrorLog) {
         serverName = aServerName;
@@ -398,11 +398,11 @@ public class McpDispatcher {
         } catch (IllegalArgumentException e) {
             result = McpToolResult.error(e.getMessage());
         } catch (Exception e) {
-            result = McpToolResult.error(describe(e));
+            result = toolError(name, e);
         } catch (LinkageError e) {
             // E.g. an internal class of Eclipse, that is missing in this
             // version of RDi.
-            result = McpToolResult.error(describe(e));
+            result = toolError(name, e);
         }
 
         if (result == null) {
@@ -410,6 +410,20 @@ public class McpDispatcher {
         }
 
         return result.toJson();
+    }
+
+    /**
+     * Writes an exception of a tool to the error log and returns it as a tool
+     * error, so that the agent learns about it and the stack trace is kept.
+     */
+    private McpToolResult toolError(String aName, Throwable aThrowable) {
+
+        String description = describe(aThrowable);
+        if (errorLog != null) {
+            errorLog.logError("MCP tool '" + aName + "' failed: " + description, aThrowable); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+
+        return McpToolResult.error(description);
     }
 
     /**

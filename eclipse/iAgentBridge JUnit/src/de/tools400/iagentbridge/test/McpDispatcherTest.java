@@ -158,16 +158,39 @@ public class McpDispatcherTest {
     }
 
     /**
-     * Errors of the tools and of the client are no internal errors.
+     * An exception of a tool is returned as a tool error and written to the
+     * error log with its cause.
+     */
+    @Test
+    public void testToolException_logged() {
+
+        final List<String> messages = new ArrayList<String>();
+        final List<Throwable> causes = new ArrayList<Throwable>();
+        McpDispatcher logged = new McpDispatcher("s", "1", null, Arrays.<IMcpTool> asList(new FailingTool()), (aMessage, aThrowable) -> {
+            messages.add(aMessage);
+            causes.add(aThrowable);
+        });
+
+        JsonObject result = result(handle(logged, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"failing\"}}"));
+
+        assertTrue(result.get("isError").getAsBoolean());
+        assertEquals(Arrays.asList("MCP tool 'failing' failed: java.lang.IllegalStateException: broken\nCaused by: java.io.IOException: disk full"),
+            messages);
+        assertEquals(1, causes.size());
+        assertEquals("broken", causes.get(0).getMessage());
+    }
+
+    /**
+     * Invalid arguments of a tool and errors of the client are not written to
+     * the error log.
      */
     @Test
     public void testOtherErrors_notLogged() {
 
         final List<String> messages = new ArrayList<String>();
-        McpDispatcher logged = new McpDispatcher("s", "1", null, Arrays.<IMcpTool> asList(new EchoTool(), new FailingTool()),
+        McpDispatcher logged = new McpDispatcher("s", "1", null, Arrays.<IMcpTool> asList(new EchoTool()),
             (aMessage, aThrowable) -> messages.add(aMessage));
 
-        handle(logged, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"failing\"}}");
         handle(logged, "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\"}}");
         handle(logged, "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"unknown\"}}");
         handle(logged, "{\"jsonrpc\":");

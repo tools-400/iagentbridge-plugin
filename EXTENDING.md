@@ -132,7 +132,7 @@ not for a user. The agent sees the text of the result; JSON is easy for it to re
   `object`, in the dialect JSON Schema 2020-12, unless it names another one with `$schema`.
 * **Invalid arguments**: throw an `IllegalArgumentException`. The client gets its message as a
   tool error. Any other exception is returned as a tool error with the class names and messages of
-  its causes.
+  its causes and is written to the error log of RDi with its stack trace.
 * **A failed tool** returns `McpToolResult.error(text)`, so that the agent notices it.
 * **Threads**: the server handles one request after the other in a thread of its own, never in the
   UI thread. A tool may block until its work is done, e.g. join a job. Work with the UI, e.g. to
