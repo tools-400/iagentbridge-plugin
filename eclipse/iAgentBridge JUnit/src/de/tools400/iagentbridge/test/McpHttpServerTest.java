@@ -185,12 +185,35 @@ public class McpHttpServerTest {
 
     @Test
     public void testMissingToken() throws IOException {
-        assertEquals(401, send("POST", McpHttpServer.PATH, null, null, PING).status);
+
+        Response response = send("POST", McpHttpServer.PATH, null, null, PING);
+
+        assertEquals(401, response.status);
+        assertEquals("Bearer realm=\"iagentbridge\"", response.headers.get("www-authenticate"));
     }
 
+    /**
+     * A wrong bearer token gets the error 'invalid_token' (RFC 6750, 3.1).
+     */
     @Test
     public void testWrongToken() throws IOException {
-        assertEquals(401, send("POST", McpHttpServer.PATH, "Bearer wrong", null, PING).status);
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer wrong", null, PING);
+
+        assertEquals(401, response.status);
+        assertEquals("Bearer realm=\"iagentbridge\", error=\"invalid_token\"", response.headers.get("www-authenticate"));
+    }
+
+    /**
+     * Credentials of another scheme get no error code (RFC 6750, 3.1).
+     */
+    @Test
+    public void testOtherScheme() throws IOException {
+
+        Response response = send("POST", McpHttpServer.PATH, "Basic " + TOKEN, null, PING);
+
+        assertEquals(401, response.status);
+        assertEquals("Bearer realm=\"iagentbridge\"", response.headers.get("www-authenticate"));
     }
 
     @Test

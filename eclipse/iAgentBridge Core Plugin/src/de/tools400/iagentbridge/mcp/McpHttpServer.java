@@ -25,8 +25,8 @@ import com.sun.net.httpserver.HttpServer;
 
 /**
  * HTTP server of the 'Streamable HTTP' transport of MCP. It listens on the
- * loopback address only, requires the bearer token of the server, rejects
- * protocol versions, that it does not support, in the header
+ * loopback address only, requires the bearer token of the server (no OAuth),
+ * rejects protocol versions, that it does not support, in the header
  * 'MCP-Protocol-Version' and answers every request with a single JSON response
  * (no SSE streams). A message, that is no valid request, notification or
  * response, is answered with '400 Bad Request'.
@@ -49,6 +49,8 @@ public class McpHttpServer {
     public static final String HEADER_PROTOCOL_VERSION = "MCP-Protocol-Version"; //$NON-NLS-1$
 
     private static final String BEARER = "Bearer "; //$NON-NLS-1$
+    private static final String CHALLENGE = "Bearer realm=\"iagentbridge\""; //$NON-NLS-1$
+    private static final String CHALLENGE_INVALID_TOKEN = CHALLENGE + ", error=\"invalid_token\""; //$NON-NLS-1$
     private static final String POST = "POST"; //$NON-NLS-1$
     private static final String THREAD_NAME = "iAgentBridge Server"; //$NON-NLS-1$
 
@@ -160,18 +162,43 @@ public class McpHttpServer {
      */
     public boolean isAuthorized(String anAuthorization) {
 
-        if (anAuthorization == null) {
+        if (!isBearerScheme(anAuthorization)) {
             return false;
         }
 
-        String value = anAuthorization.trim();
-        if (!value.regionMatches(true, 0, BEARER, 0, BEARER.length())) {
-            return false;
-        }
-
-        byte[] givenToken = value.substring(BEARER.length()).trim().getBytes(StandardCharsets.UTF_8);
+        byte[] givenToken = anAuthorization.trim().substring(BEARER.length()).trim().getBytes(StandardCharsets.UTF_8);
 
         return MessageDigest.isEqual(token, givenToken);
+    }
+
+    /**
+     * Returns whether the 'Authorization' header uses the scheme 'Bearer'.
+     *
+     * @param anAuthorization - value of the 'Authorization' header or
+     *        <code>null</code>
+     * @return <code>true</code>, if the header starts with 'Bearer '
+     */
+    private static boolean isBearerScheme(String anAuthorization) {
+        return anAuthorization != null && anAuthorization.trim().regionMatches(true, 0, BEARER, 0, BEARER.length());
+    }
+
+    /**
+     * Returns the value of the header 'WWW-Authenticate' of a '401
+     * Unauthorized' response, which HTTP demands (RFC 9110, 15.5.2). A wrong
+     * bearer token gets the error 'invalid_token', other requests get no error
+     * code (RFC 6750, 3.1).
+     *
+     * @param anAuthorization - value of the 'Authorization' header or
+     *        <code>null</code>
+     * @return challenge of the scheme 'Bearer'
+     */
+    private static String getChallenge(String anAuthorization) {
+
+        if (isBearerScheme(anAuthorization)) {
+            return CHALLENGE_INVALID_TOKEN;
+        }
+
+        return CHALLENGE;
     }
 
     private void handleExchange(HttpExchange anExchange) throws IOException {
@@ -188,7 +215,9 @@ public class McpHttpServer {
                 return;
             }
 
-            if (!isAuthorized(anExchange.getRequestHeaders().getFirst("Authorization"))) { //$NON-NLS-1$
+            String authorization = anExchange.getRequestHeaders().getFirst("Authorization"); //$NON-NLS-1$
+            if (!isAuthorized(authorization)) {
+                anExchange.getResponseHeaders().set("WWW-Authenticate", getChallenge(authorization)); //$NON-NLS-1$
                 sendStatus(anExchange, 401);
                 return;
             }

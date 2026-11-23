@@ -72,6 +72,9 @@ RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e
   names a version, that is not in `SUPPORTED_PROTOCOL_VERSIONS`). The header is not checked for
   `initialize`, which negotiates the version, and a request without it is accepted (the server then
   assumes 2025-03-26).
+* The `401` carries `WWW-Authenticate: Bearer realm="iagentbridge"`, as HTTP demands, and
+  `error="invalid_token"`, if the client sent a wrong bearer token. It names no `resource_metadata`:
+  the token is a scheme of its own, not the OAuth of the MCP authorization.
 * `McpDispatcher` handles `initialize`, `ping`, `tools/list` and `tools/call`. It returns the
   protocol version, that the client asks for, if it is in `SUPPORTED_PROTOCOL_VERSIONS`, otherwise
   `LATEST_PROTOCOL_VERSION`. Claude Code first sends `server/discover` with the header
