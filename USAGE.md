@@ -15,8 +15,9 @@ the plug-in is for, its requirements and how to install it, see [README.md](READ
    claude mcp add --scope user --transport http rdi096 http://127.0.0.1:39096/mcp --header "Authorization: Bearer $(Get-Content 'C:\Users\<user>\.iagentbridge\token')"
    ```
 
-4. Start a new Claude Code session. The tools are named `mcp__rdi096__clean_up` and
-   `mcp__rdi096__workspace_info`. Check the connection with `claude mcp get rdi096`.
+4. Start a new Claude Code session. The tools are named `mcp__rdi096__clean_up`,
+   `mcp__rdi096__get_problems` and `mcp__rdi096__workspace_info`. Check the connection with
+   `claude mcp get rdi096`.
 
 The name is the name of the entry in the configuration of Claude Code (`~/.claude.json` with
 `--scope user`); the plug-in only suggests it. Remove the entry with
@@ -50,6 +51,70 @@ or the reason why it was skipped:
 The tool reads the files from disk before Clean Up, so changes made outside of RDi are taken into
 account. Messages of the condition checks of Clean Up, e.g. about compile errors, are returned in
 `messages`.
+
+### get_problems
+
+Returns the errors and warnings, that RDi shows in the view *Problems*: compile errors and
+warnings of Java files, errors of the build path and the errors of the plug-in development tools,
+e.g. in `MANIFEST.MF`, `plugin.xml` and `build.properties`. An agent calls it after it changed
+files outside of RDi, to check that the code compiles.
+
+Before it reads the problems, the tool reads the projects and the projects, that they depend on,
+from disk and builds them. Then it waits for the automatic build of RDi, so that no problems are
+missing. Reading and building run as jobs *iAgentBridge: Refreshing projects* and *iAgentBridge:
+Building projects*, which the view *Progress* shows and in which you can cancel them.
+
+Arguments, all optional:
+
+| Name | Default | Content |
+|---|---|---|
+| `projects` | all open projects | names of projects of the RDi workspace |
+| `files` | – | absolute paths of files, like the files of `clean_up`; the tool builds their projects and returns only the problems of these files and of their projects, e.g. an error of the build path. Errors, that a change causes in other files, e.g. in the callers of a changed method, are returned only with `projects`. Not together with `projects`. |
+| `build` | `incremental` | `incremental` reads the projects from disk and builds the changes, `full` rebuilds the projects completely, `none` returns the problems, that RDi shows now, without reading from disk and without a build |
+| `minSeverity` | `warning` | lowest severity returned: `error`, `warning` or `info` |
+| `maxProblems` | `200` | maximum number of problems returned |
+
+Result:
+
+```json
+{
+  "build": "incremental",
+  "counts": { "error": 1, "warning": 3 },
+  "truncated": false,
+  "problems": [
+    { "severity": "error", "file": "C:/ws/p/src/a/B.java", "project": "p", "line": 42,
+      "message": "The method foo() is undefined for the type B",
+      "type": "org.eclipse.jdt.core.problem", "id": 67108964 }
+  ],
+  "warnings": [ "C:/ws/p/src/a/C.java has unsaved changes in an RDi editor. Its problems are those of the file on disk." ]
+}
+```
+
+* `counts`: the number of problems per severity, from `error` down to `minSeverity`, also of the
+  problems, that `maxProblems` cuts off.
+* `truncated`: `true`, if there are more problems than `maxProblems`.
+* `problems`: sorted by severity, file and line. `file` is the absolute path of the file, or of the
+  folder or project, e.g. for an error of the build path. `line` is missing, if the problem has no
+  line. `type` is the type of the marker, e.g. `org.eclipse.jdt.core.problem` of the Java compiler
+  or `org.eclipse.pde.core.problem` of the plug-in development tools. `id` is the ID of a problem
+  of the Java compiler.
+* `warnings`: files with unsaved changes in an RDi editor. Their problems are those of the file on
+  disk, not of the text in the editor. Also errors of reading from disk or of the build, e.g. of a
+  builder of a project, with the messages of RDi: `The build failed, the problems may be
+  incomplete: ...`. RDi goes on with the other builders and projects, so the tool returns the
+  problems all the same. RDi shows no dialog for such an error; the view *Progress* keeps it, and
+  an error of a builder is also in the *Error Log*.
+
+The tool fails with one of these messages:
+
+| Message | Reason |
+|---|---|
+| `Project '...' is not an open project of the RDi workspace ...` | the project does not exist or is closed |
+| `<path>: File not found.` | the path does not exist |
+| `<path>: The file does not belong to an open project of the RDi workspace ...` | the file is outside of the projects of the workspace, e.g. in a Git worktree or in a closed project |
+| `Pass either 'projects' or 'files', not both.` | both arguments are set |
+| `Argument '...' must be ...` | an argument has a wrong type or value |
+| `The refresh or the build was cancelled in RDi.` | the job was cancelled in the view *Progress* |
 
 ### workspace_info
 

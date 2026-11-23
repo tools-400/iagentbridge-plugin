@@ -11,6 +11,9 @@ RDi as tools - with the settings, that apply in RDi.
 * **Clean Up**: runs *Source > Clean Up* of RDi on Java files, with the clean-up profile of the
   project or else of the workspace, including the formatter. The agent gets back, which files
   Clean Up changed.
+* **Problems**: builds projects of the workspace and returns the errors and warnings of the view
+  *Problems*, e.g. Java compile errors and errors in `MANIFEST.MF`, so that the agent can check,
+  that its code compiles.
 * **Workspace information**: tells the agent, which RDi, workspace and Java projects it talks to
   and which clean-up profile applies to each project.
 * **Tools of other plug-ins**: other RDi plug-ins can add tools to the server, e.g. `format_rpg` of

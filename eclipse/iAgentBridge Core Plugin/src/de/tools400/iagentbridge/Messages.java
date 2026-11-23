@@ -42,6 +42,9 @@ public class Messages extends NLS {
     public static String Label_Copy;
     public static String Tooltip_Copy;
 
+    public static String Task_Refreshing_projects;
+    public static String Task_Building_projects;
+
     static {
         // initialize resource bundle
         NLS.initializeMessages(BUNDLE_NAME, Messages.class);

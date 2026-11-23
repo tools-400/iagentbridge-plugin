@@ -21,7 +21,7 @@ The API is in the exported package `de.tools400.iagentbridge.mcp`:
 |---|---|
 | `IMcpTool` | the tool: name, description, JSON schema of the arguments and `execute()` |
 | `McpToolResult` | the result: `success(text)` or `error(text)` |
-| `ToolArguments` | reads the arguments: `getStringList()` and `toLocalPath()`, which turns a path of Git Bash like `/c/dir/file` into `C:/dir/file` |
+| `ToolArguments` | reads the arguments: `getStringList()`, since 1.1.0 also the optional arguments `getOptionalStringList()`, `getChoice()` (one of fixed strings) and `getInt()`, and `toLocalPath()`, which turns a path of Git Bash like `/c/dir/file` into `C:/dir/file` |
 
 The other classes of the package, `McpDispatcher`, `McpHttpServer`, `McpResponse` and
 `IMcpErrorLog`, are internal; the rest of the plug-in is not exported.

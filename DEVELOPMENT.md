@@ -46,12 +46,12 @@ Packages of `iAgentBridge Core Plugin`:
 |---|---|
 | `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `ToolCollection` (the tools of the server), `ContributedTools` (the tools of other plug-ins), `Messages` |
 | `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `McpResponse`, `IMcpErrorLog`, `IMcpTool`, `McpToolResult`, `ToolArguments`; exported for the tools of other plug-ins |
-| `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `WorkspaceInfoTool` and their helpers |
+| `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `GetProblemsTool`, `WorkspaceInfoTool` and their helpers, e.g. `WorkspaceFiles` (file of the workspace for a path of the client, unsaved changes) and `ProblemReport` (result of `get_problems`) |
 | `de.tools400.iagentbridge.preferences` | `Preferences` and their defaults |
 | `de.tools400.iagentbridge.preferencepages` | `IAgentBridgePreferencePage` |
 
-`ServerSettings`, `ClientCommands`, `ToolCollection` and the package `mcp` have no Eclipse
-dependencies, so that the tests run outside of RDi. Gson is imported with `Import-Package` from
+`ServerSettings`, `ClientCommands`, `ToolCollection`, `ProblemReport` and the package `mcp` have no
+Eclipse dependencies, so that the tests run outside of RDi. Gson is imported with `Import-Package` from
 RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e.g.
 `new JsonParser().parse(...)`.
 
@@ -114,6 +114,39 @@ from the profile of the workspace (`CleanUpPreferenceUtil.loadOptions`). `CleanU
 describes the profile with the same rule. `CleanUpPreferenceUtil.hasSettingsInScope` is no help
 here: it checks the keys of the save actions (`sp_...`).
 
+### Problems
+
+`GetProblemsTool` runs two jobs with the rule of the workspace root, one after the other; the
+thread of the server waits for each with `join()`. The view *Progress* shows them, and the user can
+cancel them; then the tool fails. A job, that ends with an error, e.g. because a builder throws an
+exception, opens no dialog in RDi (`IProgressConstants.NO_IMMEDIATE_ERROR_PROMPT_PROPERTY`). The
+tool names the error in `warnings` and returns the problems all the same, because the build goes
+on with the other builders and projects. The warning contains the messages of all children of the
+status, because the message of the status itself (*Errors occurred during the build.*) names no
+reason. `Job.create()` returns a plain status, whose exception is the `CoreException` of the
+operation with these children.
+
+1. The first job refreshes the projects and all open projects, that they reference directly or
+   indirectly (`IProject.getReferencedProjects()`, which contains the dynamic references, that JDT
+   sets for the projects on the build path), with `DEPTH_INFINITE`.
+2. The second job builds the active build configurations of the projects with
+   `IWorkspace.build(..., buildReferences = true, ...)`.
+
+The build must not run in the operation of the refresh: PDE changes the class path container of
+a project, whose `MANIFEST.MF` changed, only at the resource change event at the end of that
+operation, often in a job of its own (`PluginModelManager$UpdateClasspathsJob`, rule of the
+workspace root, no family). A build in the same operation used the old class path, and nothing built
+the project again. The build job, scheduled after the end of the refresh, runs after that job.
+Afterwards the tool joins `ResourcesPlugin.FAMILY_AUTO_BUILD`, also with `build: none`, because an
+automatic build, that is still running, adds markers later.
+
+The problems are the markers of type `IMarker.PROBLEM` and its subtypes, e.g. of JDT and PDE;
+`ProblemReport` filters, sorts and cuts them. With `files` the tool also reads the markers of
+their projects themselves: when the build path is broken, the Java builder removes the problems of
+all files and adds one to the project. The files with unsaved changes come from the file buffers
+(`WorkspaceFiles`, like the check of `CleanUpTool`), so an editor, that does not use file buffers,
+is not seen.
+
 ### Tools
 
 `IAgentBridgePlugin.createTools()` collects the tools, whenever the server starts: first the tools
@@ -146,7 +179,9 @@ Test*. `McpHttpServerTest` starts the server on a free port and sends raw HTTP r
 `eclipse/iAgentBridge JUnit/launches`) checks, that `messages.properties` and
 `messages_de.properties` have exactly the keys of `Messages`. `ToolCollectionTest` checks, which
 tools the server accepts: names, descriptions, input schemas, duplicate names and tools, that fail
-to describe themselves.
+to describe themselves. `ProblemReportTest` checks the result of `get_problems`: order, severity
+filter, counts, cut and JSON; the build and the markers themselves need RDi and are tested by hand
+with a test instance.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the

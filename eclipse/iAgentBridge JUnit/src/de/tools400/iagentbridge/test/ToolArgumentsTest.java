@@ -14,6 +14,8 @@ import static org.junit.Assume.assumeTrue;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.function.Consumer;
 
 import org.junit.Test;
 
@@ -44,6 +46,76 @@ public class ToolArgumentsTest {
     }
 
     @Test
+    public void testGetOptionalStringList() {
+
+        assertEquals(Arrays.asList("a", "b"), ToolArguments.getOptionalStringList(arguments("{\"projects\":[\"a\",\"b\"]}"), "projects"));
+        assertEquals(Arrays.asList("a"), ToolArguments.getOptionalStringList(arguments("{\"projects\":\"a\"}"), "projects"));
+        assertEquals(Collections.emptyList(), ToolArguments.getOptionalStringList(arguments("{}"), "projects"));
+        assertEquals(Collections.emptyList(), ToolArguments.getOptionalStringList(arguments("{\"projects\":null}"), "projects"));
+        assertEquals(Collections.emptyList(), ToolArguments.getOptionalStringList(arguments("{\"projects\":[]}"), "projects"));
+    }
+
+    @Test
+    public void testGetOptionalStringList_invalid() {
+
+        assertInvalid(a -> ToolArguments.getOptionalStringList(a, "projects"), "{\"projects\":[\"a\",1]}",
+            "Argument 'projects' must contain strings only.");
+        assertInvalid(a -> ToolArguments.getOptionalStringList(a, "projects"), "{\"projects\":5}",
+            "Argument 'projects' must be an array of strings.");
+    }
+
+    @Test
+    public void testGetChoice() {
+
+        assertEquals("full", ToolArguments.getChoice(arguments("{\"build\":\"full\"}"), "build", "incremental", "incremental", "full", "none"));
+        assertEquals("incremental", ToolArguments.getChoice(arguments("{}"), "build", "incremental", "incremental", "full", "none"));
+        assertEquals("incremental", ToolArguments.getChoice(arguments("{\"build\":null}"), "build", "incremental", "incremental", "full"));
+    }
+
+    @Test
+    public void testGetChoice_invalid() {
+
+        String message = "Argument 'build' must be one of: incremental, full, none.";
+        assertInvalid(a -> ToolArguments.getChoice(a, "build", "incremental", "incremental", "full", "none"), "{\"build\":\"clean\"}", message);
+        assertInvalid(a -> ToolArguments.getChoice(a, "build", "incremental", "incremental", "full", "none"), "{\"build\":\"Full\"}", message);
+        assertInvalid(a -> ToolArguments.getChoice(a, "build", "incremental", "incremental", "full", "none"), "{\"build\":[\"full\"]}", message);
+        assertInvalid(a -> ToolArguments.getChoice(a, "build", "incremental", "incremental", "full", "none"), "{\"build\":1}", message);
+    }
+
+    @Test
+    public void testGetChoice_defaultNotAllowed() {
+
+        String message = "The default value 'fast' of argument 'mode' is not one of the allowed values.";
+        assertDefaultNotAllowed("{}", message);
+        assertDefaultNotAllowed("{\"mode\":\"safe\"}", message);
+    }
+
+    @Test
+    public void testGetInt() {
+
+        assertEquals(50, ToolArguments.getInt(arguments("{\"maxProblems\":50}"), "maxProblems", 200, 1));
+        assertEquals(50, ToolArguments.getInt(arguments("{\"maxProblems\":50.0}"), "maxProblems", 200, 1));
+        assertEquals(1, ToolArguments.getInt(arguments("{\"maxProblems\":1}"), "maxProblems", 200, 1));
+        assertEquals(Integer.MAX_VALUE, ToolArguments.getInt(arguments("{\"maxProblems\":2147483647}"), "maxProblems", 200, 1));
+        assertEquals(200, ToolArguments.getInt(arguments("{}"), "maxProblems", 200, 1));
+        assertEquals(200, ToolArguments.getInt(arguments("{\"maxProblems\":null}"), "maxProblems", 200, 1));
+    }
+
+    @Test
+    public void testGetInt_invalid() {
+
+        String noInteger = "Argument 'maxProblems' must be an integer.";
+        assertInvalid(a -> ToolArguments.getInt(a, "maxProblems", 200, 1), "{\"maxProblems\":2.5}", noInteger);
+        assertInvalid(a -> ToolArguments.getInt(a, "maxProblems", 200, 1), "{\"maxProblems\":\"50\"}", noInteger);
+        assertInvalid(a -> ToolArguments.getInt(a, "maxProblems", 200, 1), "{\"maxProblems\":true}", noInteger);
+        assertInvalid(a -> ToolArguments.getInt(a, "maxProblems", 200, 1), "{\"maxProblems\":[50]}", noInteger);
+        assertInvalid(a -> ToolArguments.getInt(a, "maxProblems", 200, 1), "{\"maxProblems\":2147483648}", noInteger);
+        assertInvalid(a -> ToolArguments.getInt(a, "maxProblems", 200, 1), "{\"maxProblems\":1e999999999}", noInteger);
+        assertInvalid(a -> ToolArguments.getInt(a, "maxProblems", 200, 1), "{\"maxProblems\":0}", "Argument 'maxProblems' must be at least 1.");
+        assertInvalid(a -> ToolArguments.getInt(a, "maxProblems", 200, 1), "{\"maxProblems\":-5}", "Argument 'maxProblems' must be at least 1.");
+    }
+
+    @Test
     public void testToLocalPath_gitBash() {
 
         assumeTrue(File.separatorChar == '\\');
@@ -63,9 +135,22 @@ public class ToolArgumentsTest {
         return new JsonParser().parse(aJson).getAsJsonObject();
     }
 
-    private static void assertInvalid(String aJson, String anExpectedMessage) {
+    private static void assertDefaultNotAllowed(String aJson, String anExpectedMessage) {
         try {
-            ToolArguments.getStringList(arguments(aJson), "files");
+            ToolArguments.getChoice(arguments(aJson), "mode", "fast", "safe");
+            fail("IllegalStateException expected for: " + aJson);
+        } catch (IllegalStateException e) {
+            assertEquals(anExpectedMessage, e.getMessage());
+        }
+    }
+
+    private static void assertInvalid(String aJson, String anExpectedMessage) {
+        assertInvalid(a -> ToolArguments.getStringList(a, "files"), aJson, anExpectedMessage);
+    }
+
+    private static void assertInvalid(Consumer<JsonObject> aReader, String aJson, String anExpectedMessage) {
+        try {
+            aReader.accept(arguments(aJson));
             fail("IllegalArgumentException expected for: " + aJson);
         } catch (IllegalArgumentException e) {
             assertEquals(anExpectedMessage, e.getMessage());

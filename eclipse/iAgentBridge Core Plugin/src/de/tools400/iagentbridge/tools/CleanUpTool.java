@@ -9,7 +9,6 @@
 package de.tools400.iagentbridge.tools;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -18,9 +17,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.eclipse.core.filebuffers.FileBuffers;
-import org.eclipse.core.filebuffers.ITextFileBuffer;
-import org.eclipse.core.filebuffers.LocationKind;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspace;
@@ -149,16 +145,7 @@ public class CleanUpTool implements IMcpTool {
      */
     private static void prepare(IWorkspaceRoot aRoot, Target aTarget) throws CoreException, IOException {
 
-        File localFile = new File(ToolArguments.toLocalPath(aTarget.path));
-        if (!localFile.isFile()) {
-            throw new IllegalArgumentException("File not found."); //$NON-NLS-1$
-        }
-
-        IFile file = findFile(aRoot, localFile.getCanonicalFile());
-        if (file == null) {
-            throw new IllegalArgumentException("The file does not belong to an open project of the RDi workspace " //$NON-NLS-1$
-                + aRoot.getLocation().toOSString() + "."); //$NON-NLS-1$
-        }
+        IFile file = WorkspaceFiles.findFile(aRoot, aTarget.path);
 
         // The file may have been changed outside of RDi.
         file.refreshLocal(IResource.DEPTH_ZERO, new NullProgressMonitor());
@@ -169,25 +156,13 @@ public class CleanUpTool implements IMcpTool {
                 + file.getProject().getName() + "."); //$NON-NLS-1$
         }
 
-        ITextFileBuffer buffer = FileBuffers.getTextFileBufferManager().getTextFileBuffer(file.getFullPath(), LocationKind.IFILE);
-        if (buffer != null && buffer.isDirty()) {
+        if (WorkspaceFiles.hasUnsavedChanges(file)) {
             throw new IllegalArgumentException("The file has unsaved changes in an RDi editor."); //$NON-NLS-1$
         }
 
         aTarget.file = file;
         aTarget.unit = (ICompilationUnit)element;
         aTarget.before = readContents(file);
-    }
-
-    private static IFile findFile(IWorkspaceRoot aRoot, File aFile) {
-
-        for (IFile file : aRoot.findFilesForLocationURI(aFile.toURI())) {
-            if (file.getProject().isOpen()) {
-                return file;
-            }
-        }
-
-        return null;
     }
 
     /**

@@ -26,6 +26,7 @@ import de.tools400.iagentbridge.mcp.McpDispatcher;
 import de.tools400.iagentbridge.mcp.McpHttpServer;
 import de.tools400.iagentbridge.preferences.Preferences;
 import de.tools400.iagentbridge.tools.CleanUpTool;
+import de.tools400.iagentbridge.tools.GetProblemsTool;
 import de.tools400.iagentbridge.tools.WorkspaceInfoTool;
 
 /**
@@ -41,6 +42,7 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
 
     private static final String INSTRUCTIONS = "Tools of a running IBM Rational Developer for i (RDi, Eclipse) instance. " //$NON-NLS-1$
         + "clean_up runs 'Source > Clean Up' with the clean-up profile of RDi on Java files of the RDi workspace. " //$NON-NLS-1$
+        + "get_problems builds projects of the RDi workspace and returns their compile errors and warnings. " //$NON-NLS-1$
         + "workspace_info tells which RDi, workspace and projects this server belongs to. " //$NON-NLS-1$
         + "Other installed plug-ins may add further tools, which describe themselves."; //$NON-NLS-1$
 
@@ -145,6 +147,7 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
 
         ToolCollection tools = new ToolCollection();
         tools.add(new CleanUpTool(), PLUGIN_ID);
+        tools.add(new GetProblemsTool(), PLUGIN_ID);
         tools.add(new WorkspaceInfoTool(aUrl), PLUGIN_ID);
         ContributedTools.addTo(tools);
 

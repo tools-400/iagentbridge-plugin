@@ -42,29 +42,118 @@ public final class ToolArguments {
     public static List<String> getStringList(JsonObject anArguments, String aName) {
 
         JsonElement element = anArguments.get(aName);
-        if (element == null || element.isJsonNull()) {
+        if (isMissing(element)) {
             throw new IllegalArgumentException("Argument '" + aName + "' is missing."); //$NON-NLS-1$ //$NON-NLS-2$
         }
 
-        List<String> values = new ArrayList<String>();
-        if (isString(element)) {
-            values.add(element.getAsString());
-        } else if (element.isJsonArray()) {
-            for (JsonElement item : element.getAsJsonArray()) {
-                if (!isString(item)) {
-                    throw new IllegalArgumentException("Argument '" + aName + "' must contain strings only."); //$NON-NLS-1$ //$NON-NLS-2$
-                }
-                values.add(item.getAsString());
-            }
-        } else {
-            throw new IllegalArgumentException("Argument '" + aName + "' must be an array of strings."); //$NON-NLS-1$ //$NON-NLS-2$
-        }
-
+        List<String> values = toStringList(element, aName);
         if (values.isEmpty()) {
             throw new IllegalArgumentException("Argument '" + aName + "' must not be empty."); //$NON-NLS-1$ //$NON-NLS-2$
         }
 
         return values;
+    }
+
+    /**
+     * Returns an optional argument, that is an array of strings. A single
+     * string is accepted as an array with one element.
+     *
+     * @param anArguments - arguments of the tool
+     * @param aName - name of the argument
+     * @return values or an empty list, if the argument is missing
+     * @throws IllegalArgumentException if the argument is not an array of
+     *         strings
+     * @since 1.1.0
+     */
+    public static List<String> getOptionalStringList(JsonObject anArguments, String aName) {
+
+        JsonElement element = anArguments.get(aName);
+        if (isMissing(element)) {
+            return new ArrayList<String>();
+        }
+
+        return toStringList(element, aName);
+    }
+
+    /**
+     * Returns an optional argument, that is one of the given strings.
+     *
+     * @param anArguments - arguments of the tool
+     * @param aName - name of the argument
+     * @param aDefault - value, if the argument is missing; one of the allowed
+     *        values
+     * @param anAllowedValues - values, that the argument may have
+     * @return value of the argument or the default value
+     * @throws IllegalArgumentException if the argument is not one of the
+     *         allowed values
+     * @throws IllegalStateException if the default value is not one of the
+     *         allowed values
+     * @since 1.1.0
+     */
+    public static String getChoice(JsonObject anArguments, String aName, String aDefault, String... anAllowedValues) {
+
+        // An error of the tool, not of the client. An IllegalArgumentException
+        // would reach the client as an error in its arguments.
+        if (!contains(anAllowedValues, aDefault)) {
+            throw new IllegalStateException("The default value '" + aDefault + "' of argument '" + aName //$NON-NLS-1$ //$NON-NLS-2$
+                + "' is not one of the allowed values."); //$NON-NLS-1$
+        }
+
+        JsonElement element = anArguments.get(aName);
+        if (isMissing(element)) {
+            return aDefault;
+        }
+
+        if (isString(element) && contains(anAllowedValues, element.getAsString())) {
+            return element.getAsString();
+        }
+
+        StringBuilder values = new StringBuilder();
+        for (String allowedValue : anAllowedValues) {
+            if (values.length() > 0) {
+                values.append(", "); //$NON-NLS-1$
+            }
+            values.append(allowedValue);
+        }
+
+        throw new IllegalArgumentException("Argument '" + aName + "' must be one of: " + values + "."); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+    }
+
+    /**
+     * Returns an optional argument, that is an integer.
+     *
+     * @param anArguments - arguments of the tool
+     * @param aName - name of the argument
+     * @param aDefault - value, if the argument is missing
+     * @param aMinimum - smallest value allowed
+     * @return value of the argument or the default value
+     * @throws IllegalArgumentException if the argument is no integer or smaller
+     *         than the minimum
+     * @since 1.1.0
+     */
+    public static int getInt(JsonObject anArguments, String aName, int aDefault, int aMinimum) {
+
+        JsonElement element = anArguments.get(aName);
+        if (isMissing(element)) {
+            return aDefault;
+        }
+
+        // A double, not a BigDecimal: a huge exponent like 1e999999999 becomes
+        // infinite instead of a number with a billion digits.
+        double value = Double.NaN;
+        if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+            value = element.getAsDouble();
+        }
+
+        if (value != Math.rint(value) || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Argument '" + aName + "' must be an integer."); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+
+        if (value < aMinimum) {
+            throw new IllegalArgumentException("Argument '" + aName + "' must be at least " + aMinimum + "."); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+        }
+
+        return (int)value;
     }
 
     /**
@@ -88,6 +177,40 @@ public final class ToolArguments {
 
         String rest = matcher.group(2);
         return matcher.group(1).toUpperCase(Locale.ENGLISH) + ":" + (rest == null ? "/" : rest); //$NON-NLS-1$ //$NON-NLS-2$
+    }
+
+    private static boolean contains(String[] aValues, String aValue) {
+
+        for (String value : aValues) {
+            if (value.equals(aValue)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean isMissing(JsonElement anElement) {
+        return anElement == null || anElement.isJsonNull();
+    }
+
+    private static List<String> toStringList(JsonElement anElement, String aName) {
+
+        List<String> values = new ArrayList<String>();
+        if (isString(anElement)) {
+            values.add(anElement.getAsString());
+        } else if (anElement.isJsonArray()) {
+            for (JsonElement item : anElement.getAsJsonArray()) {
+                if (!isString(item)) {
+                    throw new IllegalArgumentException("Argument '" + aName + "' must contain strings only."); //$NON-NLS-1$ //$NON-NLS-2$
+                }
+                values.add(item.getAsString());
+            }
+        } else {
+            throw new IllegalArgumentException("Argument '" + aName + "' must be an array of strings."); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+
+        return values;
     }
 
     private static boolean isString(JsonElement anElement) {
