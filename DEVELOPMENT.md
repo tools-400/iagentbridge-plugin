@@ -45,7 +45,7 @@ Packages of `iAgentBridge Core Plugin`:
 | Package | Content |
 |---|---|
 | `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `ToolCollection` (the tools of the server), `ContributedTools` (the tools of other plug-ins), `Messages` |
-| `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `IMcpTool`, `McpToolResult`, `ToolArguments`; exported for the tools of other plug-ins |
+| `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `McpResponse`, `IMcpTool`, `McpToolResult`, `ToolArguments`; exported for the tools of other plug-ins |
 | `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `WorkspaceInfoTool` and their helpers |
 | `de.tools400.iagentbridge.preferences` | `Preferences` and their defaults |
 | `de.tools400.iagentbridge.preferencepages` | `IAgentBridgePreferencePage` |
@@ -58,8 +58,15 @@ RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e
 ### Protocol
 
 * Transport *Streamable HTTP*: one endpoint `/mcp`, `POST` only. Every request gets a single
-  `application/json` response, notifications get `202 Accepted`. There are no SSE streams and no
-  sessions; `GET` and `DELETE` get `405 Method Not Allowed`.
+  `application/json` response, notifications and responses of the client get `202 Accepted`.
+  There are no SSE streams and no sessions; `GET` and `DELETE` get `405 Method Not Allowed`.
+* A batch (JSON array, protocol version 2025-03-26) gets the responses to its requests as an array.
+* An invalid message, whose `id` is not known (no JSON, an `id`, that is no string or number, or
+  no `id` at all, e.g. a notification with a wrong `jsonrpc`), gets `400 Bad Request` and a
+  JSON-RPC error without `id`, as the MCP schema demands, not `"id": null`. An invalid message with
+  a valid `id` (e.g. a wrong `jsonrpc` or no `method`) gets the error with this `id` and `200`, like
+  any request. A batch gets the `400`, when it is empty or none of its responses has an `id`.
+  `McpResponse.isRejected()` tells `McpHttpServer` to send the `400`.
 * Checks in this order: path (`404`), `Origin` header (`403`), token (`401`), method (`405`),
   size of the request (`413`), header `MCP-Protocol-Version` (`400` with a JSON-RPC error, if it
   names a version, that is not in `SUPPORTED_PROTOCOL_VERSIONS`). The header is not checked for
@@ -71,7 +78,9 @@ RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e
   `MCP-Protocol-Version: 2026-07-28`, gets the `400` of the header check (without the header it
   would get `-32601 Method not found`) and then sends `initialize` without the header.
 * An `IllegalArgumentException` of a tool is returned as a tool error with its message, any other
-  exception with its class names and messages.
+  exception with its class names and messages. `arguments`, that are no object, give
+  `-32602 Invalid params`. An exception outside of `execute()`, e.g. of `getDescription()` during
+  `tools/list`, gives `-32603 Internal error`.
 * A single thread handles the requests one after the other, so that two tools never run at the
   same time.
 

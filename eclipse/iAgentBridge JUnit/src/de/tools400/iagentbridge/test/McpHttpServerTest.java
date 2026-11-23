@@ -28,6 +28,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -74,6 +75,112 @@ public class McpHttpServerTest {
 
         assertEquals(202, response.status);
         assertEquals("", response.body);
+    }
+
+    /**
+     * A message, that is no valid request, notification or response, is
+     * answered with '400 Bad Request' and an error response without 'id'.
+     */
+    @Test
+    public void testPost_parseError() throws IOException {
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, "{\"jsonrpc\":");
+
+        assertEquals(400, response.status);
+        JsonObject body = parseJson(response);
+        assertFalse(body.has("id"));
+        assertEquals(McpDispatcher.PARSE_ERROR, body.getAsJsonObject("error").get("code").getAsInt());
+    }
+
+    @Test
+    public void testPost_invalidNotification() throws IOException {
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null,
+            "{\"jsonrpc\":\"1.0\",\"method\":\"notifications/initialized\"}");
+
+        assertEquals(400, response.status);
+        JsonObject body = parseJson(response);
+        assertFalse(body.has("id"));
+        assertEquals(McpDispatcher.INVALID_REQUEST, body.getAsJsonObject("error").get("code").getAsInt());
+    }
+
+    @Test
+    public void testPost_invalidId() throws IOException {
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, "{\"jsonrpc\":\"2.0\",\"id\":true,\"method\":\"ping\"}");
+
+        assertEquals(400, response.status);
+        assertFalse(parseJson(response).has("id"));
+    }
+
+    /**
+     * An error response to a request is a normal response.
+     */
+    @Test
+    public void testPost_methodNotFound() throws IOException {
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null,
+            "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"server/discover\"}");
+
+        assertEquals(200, response.status);
+        assertEquals(3, parseJson(response).get("id").getAsInt());
+    }
+
+    @Test
+    public void testPost_batch() throws IOException {
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null,
+            "[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"},{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}]");
+
+        assertEquals(200, response.status);
+        assertTrue(response.contentType, response.contentType.startsWith("application/json"));
+        JsonArray body = new JsonParser().parse(response.body).getAsJsonArray();
+        assertEquals(1, body.size());
+        assertEquals(1, body.get(0).getAsJsonObject().get("id").getAsInt());
+    }
+
+    @Test
+    public void testPost_batchOfNotifications() throws IOException {
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null,
+            "[{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}]");
+
+        assertEquals(202, response.status);
+        assertEquals("", response.body);
+    }
+
+    /**
+     * A batch without a valid request, notification or response is rejected
+     * like a single invalid message.
+     */
+    @Test
+    public void testPost_batchOfInvalidMessages() throws IOException {
+
+        for (String batch : new String[] { "[1]", "[{\"jsonrpc\":\"1.0\",\"method\":\"notifications/initialized\"}]" }) {
+            Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, batch);
+            assertEquals(batch, 400, response.status);
+            assertFalse(batch, new JsonParser().parse(response.body).getAsJsonArray().get(0).getAsJsonObject().has("id"));
+        }
+    }
+
+    /**
+     * An unexpected exception is answered with a JSON-RPC error, not with '500
+     * Internal Server Error'.
+     */
+    @Test
+    public void testPost_internalError() throws IOException {
+
+        server.stop();
+        server = new McpHttpServer(new McpDispatcher("test-server", "1.0", null, Arrays.<IMcpTool> asList(new McpDispatcherTest.BrokenTool())),
+            TOKEN);
+        server.start(0);
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/list\"}");
+
+        assertEquals(200, response.status);
+        JsonObject body = parseJson(response);
+        assertEquals(5, body.get("id").getAsInt());
+        assertEquals(McpDispatcher.INTERNAL_ERROR, body.getAsJsonObject("error").get("code").getAsInt());
     }
 
     @Test
@@ -134,8 +241,8 @@ public class McpHttpServerTest {
 
         assertEquals(400, response.status);
         assertTrue(response.contentType, response.contentType.startsWith("application/json"));
-        JsonObject body = new JsonParser().parse(response.body).getAsJsonObject();
-        assertTrue(body.get("id").isJsonNull());
+        JsonObject body = parseJson(response);
+        assertFalse(body.has("id"));
         assertEquals(McpDispatcher.INVALID_REQUEST, body.getAsJsonObject("error").get("code").getAsInt());
         String message = body.getAsJsonObject("error").get("message").getAsString();
         assertTrue(message, message.contains("2099-01-01"));
@@ -273,6 +380,16 @@ public class McpHttpServerTest {
         response.body = text.substring(endOfHeaders + 4);
 
         return response;
+    }
+
+    /**
+     * Returns the body of a JSON response.
+     */
+    private static JsonObject parseJson(Response aResponse) {
+
+        assertTrue(aResponse.contentType, aResponse.contentType != null && aResponse.contentType.startsWith("application/json"));
+
+        return new JsonParser().parse(aResponse.body).getAsJsonObject();
     }
 
     private static byte[] read(InputStream anInput) throws IOException {

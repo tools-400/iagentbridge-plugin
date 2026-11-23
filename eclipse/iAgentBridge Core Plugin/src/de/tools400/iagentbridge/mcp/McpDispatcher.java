@@ -18,14 +18,15 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 
 /**
  * Handles the JSON-RPC messages of the Model Context Protocol (MCP): the life
  * cycle ('initialize', 'ping') and the tools ('tools/list', 'tools/call').
+ * Batches of messages are accepted, as protocol version 2025-03-26 requires.
  * <p>
  * The class has no Eclipse dependencies, so that it can be tested outside of
  * RDi.
@@ -43,6 +44,7 @@ public class McpDispatcher {
     public static final int INVALID_REQUEST = -32600;
     public static final int METHOD_NOT_FOUND = -32601;
     public static final int INVALID_PARAMS = -32602;
+    public static final int INTERNAL_ERROR = -32603;
 
     private static final String JSONRPC_VERSION = "2.0"; //$NON-NLS-1$
 
@@ -58,8 +60,9 @@ public class McpDispatcher {
     private static final String KEY_RESULT = "result"; //$NON-NLS-1$
     private static final String KEY_ERROR = "error"; //$NON-NLS-1$
     private static final String KEY_NAME = "name"; //$NON-NLS-1$
+    private static final String KEY_ARGUMENTS = "arguments"; //$NON-NLS-1$
 
-    /** Keeps "id": null of error responses and does not escape '<', '=' etc. */
+    /** Keeps null values of the tools and does not escape '<', '=' etc. */
     private static final Gson GSON = new GsonBuilder().serializeNulls().disableHtmlEscaping().create();
 
     private final String serverName;
@@ -87,27 +90,77 @@ public class McpDispatcher {
     }
 
     /**
-     * Handles one JSON-RPC message.
+     * Handles one JSON-RPC message or a batch of messages.
      *
      * @param aMessage - message as received from the client
-     * @return response or <code>null</code>, if the message was a notification
-     *         or a response of the client, which need no answer
+     * @return response of the dispatcher
      */
-    public String handle(String aMessage) {
+    public McpResponse handle(String aMessage) {
 
         JsonElement element;
         try {
             element = new JsonParser().parse(aMessage);
         } catch (JsonParseException e) {
-            return error(JsonNull.INSTANCE, PARSE_ERROR, "Parse error: " + e.getMessage()); //$NON-NLS-1$
+            return toResponse(error(null, PARSE_ERROR, "Parse error: " + e.getMessage())); //$NON-NLS-1$
         }
 
-        if (element == null || !element.isJsonObject()) {
-            return error(JsonNull.INSTANCE, INVALID_REQUEST, "Invalid request: expected a JSON object (batches are not supported)."); //$NON-NLS-1$
+        if (element != null && element.isJsonArray()) {
+            return handleBatch(element.getAsJsonArray());
         }
 
-        JsonObject message = element.getAsJsonObject();
+        return toResponse(handleMessage(element));
+    }
+
+    /**
+     * Handles a batch of messages. The responses are returned as an array. Like
+     * a single message, the batch is rejected, when none of its responses has
+     * an 'id', because it contains invalid messages, but no request.
+     */
+    private McpResponse handleBatch(JsonArray aBatch) {
+
+        if (aBatch.size() == 0) {
+            return toResponse(error(null, INVALID_REQUEST, "Invalid request: the batch is empty.")); //$NON-NLS-1$
+        }
+
+        JsonArray responses = new JsonArray();
+        boolean hasAnswers = false;
+        for (JsonElement message : aBatch) {
+            JsonObject response = handleMessage(message);
+            if (response != null) {
+                responses.add(response);
+                if (response.has(KEY_ID)) {
+                    hasAnswers = true;
+                }
+            }
+        }
+
+        if (responses.size() == 0) {
+            return McpResponse.noAnswer();
+        }
+
+        String json = GSON.toJson(responses);
+        if (!hasAnswers) {
+            return McpResponse.rejected(json);
+        }
+
+        return McpResponse.answer(json);
+    }
+
+    /**
+     * Handles one message.
+     *
+     * @return response or <code>null</code>, if the message was a notification
+     *         or a response of the client, which need no answer
+     */
+    private JsonObject handleMessage(JsonElement aMessage) {
+
+        if (aMessage == null || !aMessage.isJsonObject()) {
+            return error(null, INVALID_REQUEST, "Invalid request: expected a JSON object."); //$NON-NLS-1$
+        }
+
+        JsonObject message = aMessage.getAsJsonObject();
         JsonElement id = message.get(KEY_ID);
+        JsonElement validId = isValidId(id) ? id : null;
         String method = getString(message, KEY_METHOD);
 
         if (method == null) {
@@ -115,11 +168,11 @@ public class McpDispatcher {
                 // Response of the client to a request of the server.
                 return null;
             }
-            return error(nullIfMissing(id), INVALID_REQUEST, "Invalid request: 'method' is missing."); //$NON-NLS-1$
+            return error(validId, INVALID_REQUEST, "Invalid request: 'method' is missing."); //$NON-NLS-1$
         }
 
         if (!JSONRPC_VERSION.equals(getString(message, KEY_JSONRPC))) {
-            return error(nullIfMissing(id), INVALID_REQUEST, "Invalid request: 'jsonrpc' must be \"2.0\"."); //$NON-NLS-1$
+            return error(validId, INVALID_REQUEST, "Invalid request: 'jsonrpc' must be \"2.0\"."); //$NON-NLS-1$
         }
 
         if (id == null) {
@@ -127,26 +180,77 @@ public class McpDispatcher {
             return null;
         }
 
-        if (id.isJsonNull()) {
-            return error(id, INVALID_REQUEST, "Invalid request: 'id' must not be null."); //$NON-NLS-1$
+        if (validId == null) {
+            return error(null, INVALID_REQUEST, "Invalid request: 'id' must be a string or a number."); //$NON-NLS-1$
         }
 
-        JsonObject params = getObject(message, KEY_PARAMS);
+        return handleRequest(validId, method, getObject(message, KEY_PARAMS));
+    }
+
+    /**
+     * Handles a request.
+     *
+     * @return response
+     */
+    private JsonObject handleRequest(JsonElement anId, String aMethod, JsonObject aParams) {
+
         try {
-            if (METHOD_INITIALIZE.equals(method)) {
-                return response(id, initialize(params));
-            } else if (METHOD_PING.equals(method)) {
-                return response(id, new JsonObject());
-            } else if (METHOD_TOOLS_LIST.equals(method)) {
-                return response(id, listTools());
-            } else if (METHOD_TOOLS_CALL.equals(method)) {
-                return response(id, callTool(params));
+            if (METHOD_INITIALIZE.equals(aMethod)) {
+                return response(anId, initialize(aParams));
+            } else if (METHOD_PING.equals(aMethod)) {
+                return response(anId, new JsonObject());
+            } else if (METHOD_TOOLS_LIST.equals(aMethod)) {
+                return response(anId, listTools());
+            } else if (METHOD_TOOLS_CALL.equals(aMethod)) {
+                return response(anId, callTool(aParams));
             } else {
-                return error(id, METHOD_NOT_FOUND, "Method not found: " + method); //$NON-NLS-1$
+                return error(anId, METHOD_NOT_FOUND, "Method not found: " + aMethod); //$NON-NLS-1$
             }
         } catch (InvalidParamsException e) {
-            return error(id, INVALID_PARAMS, e.getMessage());
+            return error(anId, INVALID_PARAMS, e.getMessage());
+        } catch (RuntimeException e) {
+            // E.g. a tool, that fails to describe itself.
+            return error(anId, INTERNAL_ERROR, "Internal error: " + describe(e)); //$NON-NLS-1$
+        } catch (LinkageError e) {
+            // E.g. a tool, that refers to a class, that is missing in this
+            // version of RDi.
+            return error(anId, INTERNAL_ERROR, "Internal error: " + describe(e)); //$NON-NLS-1$
         }
+    }
+
+    /**
+     * Returns whether the ID of a request is valid: a string or a number.
+     */
+    private static boolean isValidId(JsonElement anId) {
+
+        if (anId == null || !anId.isJsonPrimitive()) {
+            return false;
+        }
+
+        JsonPrimitive id = anId.getAsJsonPrimitive();
+
+        return id.isString() || id.isNumber();
+    }
+
+    /**
+     * Returns the response of the dispatcher to a single message. An error
+     * response without 'id' rejects the message.
+     *
+     * @param aResponse - response or <code>null</code>, if there is none
+     * @return response of the dispatcher
+     */
+    private static McpResponse toResponse(JsonObject aResponse) {
+
+        if (aResponse == null) {
+            return McpResponse.noAnswer();
+        }
+
+        String json = GSON.toJson(aResponse);
+        if (!aResponse.has(KEY_ID)) {
+            return McpResponse.rejected(json);
+        }
+
+        return McpResponse.answer(json);
     }
 
     /**
@@ -174,8 +278,8 @@ public class McpDispatcher {
             return null;
         }
 
-        return error(JsonNull.INSTANCE, INVALID_REQUEST, "Unsupported protocol version in the header MCP-Protocol-Version: " //$NON-NLS-1$
-            + aProtocolVersion.trim() + ". Supported versions: " + String.join(", ", SUPPORTED_PROTOCOL_VERSIONS) + "."); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+        return GSON.toJson(error(null, INVALID_REQUEST, "Unsupported protocol version in the header MCP-Protocol-Version: " //$NON-NLS-1$
+            + aProtocolVersion.trim() + ". Supported versions: " + String.join(", ", SUPPORTED_PROTOCOL_VERSIONS) + ".")); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
     }
 
     /**
@@ -255,10 +359,7 @@ public class McpDispatcher {
             throw new InvalidParamsException("Unknown tool: " + name); //$NON-NLS-1$
         }
 
-        JsonObject arguments = getObject(aParams, "arguments"); //$NON-NLS-1$
-        if (arguments == null) {
-            arguments = new JsonObject();
-        }
+        JsonObject arguments = getArguments(aParams);
 
         McpToolResult result;
         try {
@@ -280,6 +381,26 @@ public class McpDispatcher {
         return result.toJson();
     }
 
+    /**
+     * Returns the arguments of a tool call. Missing arguments are returned as
+     * an empty object.
+     *
+     * @throws InvalidParamsException if the arguments are no object
+     */
+    private static JsonObject getArguments(JsonObject aParams) throws InvalidParamsException {
+
+        JsonElement arguments = aParams.get(KEY_ARGUMENTS);
+        if (arguments == null || arguments.isJsonNull()) {
+            return new JsonObject();
+        }
+
+        if (!arguments.isJsonObject()) {
+            throw new InvalidParamsException("Invalid params: 'arguments' must be an object."); //$NON-NLS-1$
+        }
+
+        return arguments.getAsJsonObject();
+    }
+
     private static String describe(Throwable aThrowable) {
 
         StringBuilder text = new StringBuilder();
@@ -298,17 +419,27 @@ public class McpDispatcher {
         return text.toString();
     }
 
-    private static String response(JsonElement anId, JsonObject aResult) {
+    private static JsonObject response(JsonElement anId, JsonObject aResult) {
 
         JsonObject response = new JsonObject();
         response.addProperty(KEY_JSONRPC, JSONRPC_VERSION);
         response.add(KEY_ID, anId);
         response.add(KEY_RESULT, aResult);
 
-        return GSON.toJson(response);
+        return response;
     }
 
-    private static String error(JsonElement anId, int aCode, String aMessage) {
+    /**
+     * Creates an error response.
+     *
+     * @param anId - ID of the request or <code>null</code>, if it is not known;
+     *        then the response has no 'id', as the MCP schema demands, not
+     *        "id": null of JSON-RPC
+     * @param aCode - error code
+     * @param aMessage - error message
+     * @return error response
+     */
+    private static JsonObject error(JsonElement anId, int aCode, String aMessage) {
 
         JsonObject error = new JsonObject();
         error.addProperty("code", Integer.valueOf(aCode)); //$NON-NLS-1$
@@ -316,14 +447,12 @@ public class McpDispatcher {
 
         JsonObject response = new JsonObject();
         response.addProperty(KEY_JSONRPC, JSONRPC_VERSION);
-        response.add(KEY_ID, anId);
+        if (anId != null) {
+            response.add(KEY_ID, anId);
+        }
         response.add(KEY_ERROR, error);
 
-        return GSON.toJson(response);
-    }
-
-    private static JsonElement nullIfMissing(JsonElement anId) {
-        return anId == null ? JsonNull.INSTANCE : anId;
+        return response;
     }
 
     private static String getString(JsonObject anObject, String aKey) {

@@ -28,7 +28,8 @@ import com.sun.net.httpserver.HttpServer;
  * loopback address only, requires the bearer token of the server, rejects
  * protocol versions, that it does not support, in the header
  * 'MCP-Protocol-Version' and answers every request with a single JSON response
- * (no SSE streams).
+ * (no SSE streams). A message, that is no valid request, notification or
+ * response, is answered with '400 Bad Request'.
  * <p>
  * Requests are handled one after the other by a single thread, so that two
  * tools never run at the same time.
@@ -211,13 +212,13 @@ public class McpHttpServer {
                 return;
             }
 
-            String response = dispatcher.handle(request);
-            if (response == null) {
+            McpResponse response = dispatcher.handle(request);
+            if (response.getJson() == null) {
                 sendStatus(anExchange, 202);
                 return;
             }
 
-            sendJson(anExchange, 200, response);
+            sendJson(anExchange, response.isRejected() ? 400 : 200, response.getJson());
 
         } catch (RuntimeException e) {
             sendInternalError(anExchange);

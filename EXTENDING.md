@@ -23,8 +23,8 @@ The API is in the exported package `de.tools400.iagentbridge.mcp`:
 | `McpToolResult` | the result: `success(text)` or `error(text)` |
 | `ToolArguments` | reads the arguments: `getStringList()` and `toLocalPath()`, which turns a path of Git Bash like `/c/dir/file` into `C:/dir/file` |
 
-The other classes of the package, `McpDispatcher` and `McpHttpServer`, are internal; the rest of
-the plug-in is not exported.
+The other classes of the package, `McpDispatcher`, `McpHttpServer` and `McpResponse`, are
+internal; the rest of the plug-in is not exported.
 
 ## A tool
 
