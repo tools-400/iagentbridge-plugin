@@ -13,7 +13,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import org.junit.Test;
 
@@ -42,6 +44,29 @@ public class McpDispatcherTest {
         assertEquals("1.2.3", result.getAsJsonObject("serverInfo").get("version").getAsString());
         assertFalse(result.getAsJsonObject("capabilities").getAsJsonObject("tools").get("listChanged").getAsBoolean());
         assertEquals("Some instructions.", result.get("instructions").getAsString());
+    }
+
+    /**
+     * 2025-11-25 is the latest version, that the server supports. Claude Code
+     * asks for it.
+     */
+    @Test
+    public void testInitialize_latestVersion() {
+
+        JsonObject result = result(
+            handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\"}}"));
+
+        assertEquals("2025-11-25", result.get("protocolVersion").getAsString());
+        assertEquals("2025-11-25", McpDispatcher.LATEST_PROTOCOL_VERSION);
+    }
+
+    @Test
+    public void testInitialize_olderVersion() {
+
+        JsonObject result = result(
+            handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\"}}"));
+
+        assertEquals("2025-06-18", result.get("protocolVersion").getAsString());
     }
 
     @Test
@@ -110,6 +135,44 @@ public class McpDispatcherTest {
         assertEquals(McpDispatcher.INTERNAL_ERROR, response.getAsJsonObject("error").get("code").getAsInt());
         assertEquals("Internal error: java.lang.IllegalStateException: no description",
             response.getAsJsonObject("error").get("message").getAsString());
+    }
+
+    /**
+     * An internal error is written to the error log with its cause.
+     */
+    @Test
+    public void testInternalError_logged() {
+
+        final List<String> messages = new ArrayList<String>();
+        final List<Throwable> causes = new ArrayList<Throwable>();
+        McpDispatcher broken = new McpDispatcher("s", "1", null, Arrays.<IMcpTool> asList(new BrokenTool()), (aMessage, aThrowable) -> {
+            messages.add(aMessage);
+            causes.add(aThrowable);
+        });
+
+        handle(broken, "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}");
+
+        assertEquals(Arrays.asList("MCP request 'tools/list' failed: java.lang.IllegalStateException: no description"), messages);
+        assertEquals(1, causes.size());
+        assertEquals("no description", causes.get(0).getMessage());
+    }
+
+    /**
+     * Errors of the tools and of the client are no internal errors.
+     */
+    @Test
+    public void testOtherErrors_notLogged() {
+
+        final List<String> messages = new ArrayList<String>();
+        McpDispatcher logged = new McpDispatcher("s", "1", null, Arrays.<IMcpTool> asList(new EchoTool(), new FailingTool()),
+            (aMessage, aThrowable) -> messages.add(aMessage));
+
+        handle(logged, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"failing\"}}");
+        handle(logged, "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\"}}");
+        handle(logged, "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"unknown\"}}");
+        handle(logged, "{\"jsonrpc\":");
+
+        assertTrue(messages.toString(), messages.isEmpty());
     }
 
     /**
@@ -407,8 +470,10 @@ public class McpDispatcherTest {
 
         assertFalse(response.has("id"));
         assertEquals(McpDispatcher.INVALID_REQUEST, response.getAsJsonObject("error").get("code").getAsInt());
-        assertEquals("Unsupported protocol version in the header MCP-Protocol-Version: 2099-01-01."
-            + " Supported versions: 2025-06-18, 2025-03-26, 2024-11-05.", response.getAsJsonObject("error").get("message").getAsString());
+        assertEquals(
+            "Unsupported protocol version in the header MCP-Protocol-Version: 2099-01-01."
+                + " Supported versions: 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05.",
+            response.getAsJsonObject("error").get("message").getAsString());
     }
 
     @Test

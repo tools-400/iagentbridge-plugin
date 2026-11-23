@@ -45,7 +45,7 @@ Packages of `iAgentBridge Core Plugin`:
 | Package | Content |
 |---|---|
 | `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `ToolCollection` (the tools of the server), `ContributedTools` (the tools of other plug-ins), `Messages` |
-| `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `McpResponse`, `IMcpTool`, `McpToolResult`, `ToolArguments`; exported for the tools of other plug-ins |
+| `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `McpResponse`, `IMcpErrorLog`, `IMcpTool`, `McpToolResult`, `ToolArguments`; exported for the tools of other plug-ins |
 | `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `WorkspaceInfoTool` and their helpers |
 | `de.tools400.iagentbridge.preferences` | `Preferences` and their defaults |
 | `de.tools400.iagentbridge.preferencepages` | `IAgentBridgePreferencePage` |
@@ -83,7 +83,8 @@ RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e
 * An `IllegalArgumentException` of a tool is returned as a tool error with its message, any other
   exception with its class names and messages. `arguments`, that are no object, give
   `-32602 Invalid params`. An exception outside of `execute()`, e.g. of `getDescription()` during
-  `tools/list`, gives `-32603 Internal error`.
+  `tools/list`, gives `-32603 Internal error` and is written to the error log of RDi with its
+  stack trace (`IMcpErrorLog`, which `IAgentBridgePlugin` passes to `McpDispatcher`).
 * A single thread handles the requests one after the other, so that two tools never run at the
   same time.
 

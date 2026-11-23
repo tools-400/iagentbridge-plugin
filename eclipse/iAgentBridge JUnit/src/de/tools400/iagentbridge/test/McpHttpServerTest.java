@@ -249,6 +249,14 @@ public class McpHttpServerTest {
     }
 
     /**
+     * Claude Code sends the header of the negotiated version 2025-11-25.
+     */
+    @Test
+    public void testProtocolVersionHeader_2025_11_25() throws IOException {
+        assertEquals(200, send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, "2025-11-25", PING).status);
+    }
+
+    /**
      * Without the header the server assumes protocol version 2025-03-26, which
      * it supports.
      */

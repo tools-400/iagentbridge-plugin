@@ -34,11 +34,11 @@ import com.google.gson.JsonPrimitive;
 public class McpDispatcher {
 
     /** Protocol version returned, when the client asks for an unknown one. */
-    public static final String LATEST_PROTOCOL_VERSION = "2025-06-18"; //$NON-NLS-1$
+    public static final String LATEST_PROTOCOL_VERSION = "2025-11-25"; //$NON-NLS-1$
 
     /** Protocol versions, whose features the server supports. */
     public static final List<String> SUPPORTED_PROTOCOL_VERSIONS = Collections
-        .unmodifiableList(Arrays.asList(LATEST_PROTOCOL_VERSION, "2025-03-26", "2024-11-05")); //$NON-NLS-1$ //$NON-NLS-2$
+        .unmodifiableList(Arrays.asList(LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05")); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 
     public static final int PARSE_ERROR = -32700;
     public static final int INVALID_REQUEST = -32600;
@@ -69,6 +69,20 @@ public class McpDispatcher {
     private final String serverVersion;
     private final String instructions;
     private final Map<String, IMcpTool> tools;
+    private final IMcpErrorLog errorLog;
+
+    /**
+     * Creates a dispatcher, that writes no error log.
+     *
+     * @param aServerName - name of the server returned by 'initialize'
+     * @param aServerVersion - version of the server returned by 'initialize'
+     * @param anInstructions - instructions for the AI agent returned by
+     *        'initialize' or <code>null</code>
+     * @param aTools - tools of the server
+     */
+    public McpDispatcher(String aServerName, String aServerVersion, String anInstructions, List<IMcpTool> aTools) {
+        this(aServerName, aServerVersion, anInstructions, aTools, null);
+    }
 
     /**
      * Creates a dispatcher.
@@ -78,8 +92,10 @@ public class McpDispatcher {
      * @param anInstructions - instructions for the AI agent returned by
      *        'initialize' or <code>null</code>
      * @param aTools - tools of the server
+     * @param anErrorLog - log of the internal errors ('-32603') or
+     *        <code>null</code>
      */
-    public McpDispatcher(String aServerName, String aServerVersion, String anInstructions, List<IMcpTool> aTools) {
+    public McpDispatcher(String aServerName, String aServerVersion, String anInstructions, List<IMcpTool> aTools, IMcpErrorLog anErrorLog) {
         serverName = aServerName;
         serverVersion = aServerVersion;
         instructions = anInstructions;
@@ -87,6 +103,7 @@ public class McpDispatcher {
         for (IMcpTool tool : aTools) {
             tools.put(tool.getName(), tool);
         }
+        errorLog = anErrorLog;
     }
 
     /**
@@ -210,12 +227,26 @@ public class McpDispatcher {
             return error(anId, INVALID_PARAMS, e.getMessage());
         } catch (RuntimeException e) {
             // E.g. a tool, that fails to describe itself.
-            return error(anId, INTERNAL_ERROR, "Internal error: " + describe(e)); //$NON-NLS-1$
+            return internalError(anId, aMethod, e);
         } catch (LinkageError e) {
             // E.g. a tool, that refers to a class, that is missing in this
             // version of RDi.
-            return error(anId, INTERNAL_ERROR, "Internal error: " + describe(e)); //$NON-NLS-1$
+            return internalError(anId, aMethod, e);
         }
+    }
+
+    /**
+     * Writes an internal error to the error log and returns the error response
+     * '-32603'.
+     */
+    private JsonObject internalError(JsonElement anId, String aMethod, Throwable aThrowable) {
+
+        String description = describe(aThrowable);
+        if (errorLog != null) {
+            errorLog.logError("MCP request '" + aMethod + "' failed: " + description, aThrowable); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+
+        return error(anId, INTERNAL_ERROR, "Internal error: " + description); //$NON-NLS-1$
     }
 
     /**

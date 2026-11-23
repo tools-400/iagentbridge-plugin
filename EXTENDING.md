@@ -23,8 +23,8 @@ The API is in the exported package `de.tools400.iagentbridge.mcp`:
 | `McpToolResult` | the result: `success(text)` or `error(text)` |
 | `ToolArguments` | reads the arguments: `getStringList()` and `toLocalPath()`, which turns a path of Git Bash like `/c/dir/file` into `C:/dir/file` |
 
-The other classes of the package, `McpDispatcher`, `McpHttpServer` and `McpResponse`, are
-internal; the rest of the plug-in is not exported.
+The other classes of the package, `McpDispatcher`, `McpHttpServer`, `McpResponse` and
+`IMcpErrorLog`, are internal; the rest of the plug-in is not exported.
 
 ## A tool
 
@@ -129,7 +129,7 @@ not for a user. The agent sees the text of the result; JSON is easy for it to re
   unique: the tools of iAgentBridge are added first, then the contributed tools, and the first tool
   with a name wins.
 * **The description and the input schema** are required. The schema is a JSON schema of the type
-  `object`.
+  `object`, in the dialect JSON Schema 2020-12, unless it names another one with `$schema`.
 * **Invalid arguments**: throw an `IllegalArgumentException`. The client gets its message as a
   tool error. Any other exception is returned as a tool error with the class names and messages of
   its causes.

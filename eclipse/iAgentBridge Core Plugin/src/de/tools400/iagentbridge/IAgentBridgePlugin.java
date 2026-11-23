@@ -116,7 +116,8 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
             String url = "http://127.0.0.1:" + port + McpHttpServer.PATH; //$NON-NLS-1$
 
             ToolCollection tools = createTools(url);
-            McpDispatcher dispatcher = new McpDispatcher(SERVER_NAME, getBundle().getVersion().toString(), INSTRUCTIONS, tools.getTools());
+            McpDispatcher dispatcher = new McpDispatcher(SERVER_NAME, getBundle().getVersion().toString(), INSTRUCTIONS, tools.getTools(),
+                this::logError);
 
             McpHttpServer httpServer = new McpHttpServer(dispatcher, settings.getToken());
             httpServer.start(port);
@@ -262,7 +263,7 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
      * @return Version of the plug-in.
      */
     public String getVersion() {
-        String version = (String)getBundle().getHeaders().get(Constants.BUNDLE_VERSION);
+        String version = getBundle().getHeaders().get(Constants.BUNDLE_VERSION);
         if (version == null) {
             version = "0.0.0"; //$NON-NLS-1$
         }
