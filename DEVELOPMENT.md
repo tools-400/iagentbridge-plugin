@@ -60,11 +60,16 @@ RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e
 * Transport *Streamable HTTP*: one endpoint `/mcp`, `POST` only. Every request gets a single
   `application/json` response, notifications get `202 Accepted`. There are no SSE streams and no
   sessions; `GET` and `DELETE` get `405 Method Not Allowed`.
-* Checks in this order: path (`404`), `Origin` header (`403`), token (`401`), method (`405`).
+* Checks in this order: path (`404`), `Origin` header (`403`), token (`401`), method (`405`),
+  size of the request (`413`), header `MCP-Protocol-Version` (`400` with a JSON-RPC error, if it
+  names a version, that is not in `SUPPORTED_PROTOCOL_VERSIONS`). The header is not checked for
+  `initialize`, which negotiates the version, and a request without it is accepted (the server then
+  assumes 2025-03-26).
 * `McpDispatcher` handles `initialize`, `ping`, `tools/list` and `tools/call`. It returns the
   protocol version, that the client asks for, if it is in `SUPPORTED_PROTOCOL_VERSIONS`, otherwise
-  `LATEST_PROTOCOL_VERSION`. Claude Code first sends `server/discover` for a newer protocol
-  version, gets `-32601 Method not found` and then sends `initialize`.
+  `LATEST_PROTOCOL_VERSION`. Claude Code first sends `server/discover` with the header
+  `MCP-Protocol-Version: 2026-07-28`, gets the `400` of the header check (without the header it
+  would get `-32601 Method not found`) and then sends `initialize` without the header.
 * An `IllegalArgumentException` of a tool is returned as a tool error with its message, any other
   exception with its class names and messages.
 * A single thread handles the requests one after the other, so that two tools never run at the

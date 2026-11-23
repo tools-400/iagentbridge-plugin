@@ -25,8 +25,10 @@ import com.sun.net.httpserver.HttpServer;
 
 /**
  * HTTP server of the 'Streamable HTTP' transport of MCP. It listens on the
- * loopback address only, requires the bearer token of the server and answers
- * every request with a single JSON response (no SSE streams).
+ * loopback address only, requires the bearer token of the server, rejects
+ * protocol versions, that it does not support, in the header
+ * 'MCP-Protocol-Version' and answers every request with a single JSON response
+ * (no SSE streams).
  * <p>
  * Requests are handled one after the other by a single thread, so that two
  * tools never run at the same time.
@@ -41,6 +43,9 @@ public class McpHttpServer {
 
     /** Maximum size of a request in bytes */
     public static final int MAX_REQUEST_SIZE = 4 * 1024 * 1024;
+
+    /** HTTP header with the negotiated protocol version */
+    public static final String HEADER_PROTOCOL_VERSION = "MCP-Protocol-Version"; //$NON-NLS-1$
 
     private static final String BEARER = "Bearer "; //$NON-NLS-1$
     private static final String POST = "POST"; //$NON-NLS-1$
@@ -200,18 +205,19 @@ public class McpHttpServer {
                 return;
             }
 
+            String versionError = McpDispatcher.checkProtocolVersionHeader(request, anExchange.getRequestHeaders().getFirst(HEADER_PROTOCOL_VERSION));
+            if (versionError != null) {
+                sendJson(anExchange, 400, versionError);
+                return;
+            }
+
             String response = dispatcher.handle(request);
             if (response == null) {
                 sendStatus(anExchange, 202);
                 return;
             }
 
-            byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
-            anExchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8"); //$NON-NLS-1$ //$NON-NLS-2$
-            anExchange.sendResponseHeaders(200, bytes.length);
-            try (OutputStream out = anExchange.getResponseBody()) {
-                out.write(bytes);
-            }
+            sendJson(anExchange, 200, response);
 
         } catch (RuntimeException e) {
             sendInternalError(anExchange);
@@ -222,6 +228,16 @@ public class McpHttpServer {
 
     private static void sendStatus(HttpExchange anExchange, int aStatus) throws IOException {
         anExchange.sendResponseHeaders(aStatus, -1);
+    }
+
+    private static void sendJson(HttpExchange anExchange, int aStatus, String aJson) throws IOException {
+
+        byte[] bytes = aJson.getBytes(StandardCharsets.UTF_8);
+        anExchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8"); //$NON-NLS-1$ //$NON-NLS-2$
+        anExchange.sendResponseHeaders(aStatus, bytes.length);
+        try (OutputStream out = anExchange.getResponseBody()) {
+            out.write(bytes);
+        }
     }
 
     private static void sendInternalError(HttpExchange anExchange) {

@@ -111,6 +111,74 @@ public class McpHttpServerTest {
     }
 
     @Test
+    public void testProtocolVersionHeader_supported() throws IOException {
+
+        for (String version : McpDispatcher.SUPPORTED_PROTOCOL_VERSIONS) {
+            assertEquals(version, 200, send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, version, PING).status);
+        }
+    }
+
+    /**
+     * Without the header the server assumes protocol version 2025-03-26, which
+     * it supports.
+     */
+    @Test
+    public void testProtocolVersionHeader_missing() throws IOException {
+        assertEquals(200, send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, null, PING).status);
+    }
+
+    @Test
+    public void testProtocolVersionHeader_unsupported() throws IOException {
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, "2099-01-01", PING);
+
+        assertEquals(400, response.status);
+        assertTrue(response.contentType, response.contentType.startsWith("application/json"));
+        JsonObject body = new JsonParser().parse(response.body).getAsJsonObject();
+        assertTrue(body.get("id").isJsonNull());
+        assertEquals(McpDispatcher.INVALID_REQUEST, body.getAsJsonObject("error").get("code").getAsInt());
+        String message = body.getAsJsonObject("error").get("message").getAsString();
+        assertTrue(message, message.contains("2099-01-01"));
+        assertTrue(message, message.contains(McpDispatcher.LATEST_PROTOCOL_VERSION));
+    }
+
+    @Test
+    public void testProtocolVersionHeader_invalid() throws IOException {
+        assertEquals(400, send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, "not-a-version", PING).status);
+    }
+
+    @Test
+    public void testProtocolVersionHeader_notification() throws IOException {
+        assertEquals(400, send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, "2099-01-01",
+            "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}").status);
+    }
+
+    /**
+     * Claude Code sends 'server/discover' with the header of a newer protocol
+     * version (2026-07-28) and goes on with 'initialize', when it fails.
+     */
+    @Test
+    public void testProtocolVersionHeader_serverDiscover() throws IOException {
+        assertEquals(400, send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, "2026-07-28",
+            "{\"jsonrpc\":\"2.0\",\"id\":\"server-discover-probe-1\",\"method\":\"server/discover\"}").status);
+    }
+
+    /**
+     * 'initialize' negotiates the protocol version, so its header is not
+     * checked.
+     */
+    @Test
+    public void testProtocolVersionHeader_initialize() throws IOException {
+
+        Response response = send("POST", McpHttpServer.PATH, "Bearer " + TOKEN, null, "2099-01-01",
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2099-01-01\"}}");
+
+        assertEquals(200, response.status);
+        JsonObject result = new JsonParser().parse(response.body).getAsJsonObject().getAsJsonObject("result");
+        assertEquals(McpDispatcher.LATEST_PROTOCOL_VERSION, result.get("protocolVersion").getAsString());
+    }
+
+    @Test
     public void testIsAllowedOrigin() {
         assertTrue(McpHttpServer.isAllowedOrigin(null));
         assertTrue(McpHttpServer.isAllowedOrigin("http://127.0.0.1:39096"));
@@ -149,6 +217,15 @@ public class McpHttpServerTest {
      * silently drops the restricted header 'Origin'.
      */
     private Response send(String aMethod, String aPath, String anAuthorization, String anOrigin, String aBody) throws IOException {
+        return send(aMethod, aPath, anAuthorization, anOrigin, null, aBody);
+    }
+
+    /**
+     * Sends a raw HTTP request with the header 'MCP-Protocol-Version', unless
+     * it is <code>null</code>.
+     */
+    private Response send(String aMethod, String aPath, String anAuthorization, String anOrigin, String aProtocolVersion, String aBody)
+        throws IOException {
 
         byte[] body = aBody == null ? new byte[0] : aBody.getBytes(StandardCharsets.UTF_8);
 
@@ -162,6 +239,9 @@ public class McpHttpServerTest {
         }
         if (anOrigin != null) {
             request.append("Origin: ").append(anOrigin).append("\r\n");
+        }
+        if (aProtocolVersion != null) {
+            request.append("MCP-Protocol-Version: ").append(aProtocolVersion).append("\r\n");
         }
         if (aBody != null) {
             request.append("Content-Type: application/json\r\n");

@@ -149,6 +149,57 @@ public class McpDispatcher {
         }
     }
 
+    /**
+     * Checks the value of the HTTP header 'MCP-Protocol-Version' of a message.
+     * After 'initialize' the client sends the negotiated protocol version in
+     * this header, and the server must answer a version, that it does not
+     * support, with '400 Bad Request'.
+     * <p>
+     * A message without the header is accepted, because the server then assumes
+     * version 2025-03-26, which it supports. 'initialize' is accepted with any
+     * header, because it negotiates the version.
+     *
+     * @param aMessage - message as received from the client
+     * @param aProtocolVersion - value of the header or <code>null</code>
+     * @return error response to send with '400 Bad Request' or
+     *         <code>null</code>, if the message may be handled
+     */
+    public static String checkProtocolVersionHeader(String aMessage, String aProtocolVersion) {
+
+        if (aProtocolVersion == null || SUPPORTED_PROTOCOL_VERSIONS.contains(aProtocolVersion.trim())) {
+            return null;
+        }
+
+        if (METHOD_INITIALIZE.equals(getMethod(aMessage))) {
+            return null;
+        }
+
+        return error(JsonNull.INSTANCE, INVALID_REQUEST, "Unsupported protocol version in the header MCP-Protocol-Version: " //$NON-NLS-1$
+            + aProtocolVersion.trim() + ". Supported versions: " + String.join(", ", SUPPORTED_PROTOCOL_VERSIONS) + "."); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+    }
+
+    /**
+     * Returns the method of a message.
+     *
+     * @return method or <code>null</code>, if the message is no JSON object
+     *         with a method
+     */
+    private static String getMethod(String aMessage) {
+
+        JsonElement element;
+        try {
+            element = new JsonParser().parse(aMessage);
+        } catch (JsonParseException e) {
+            return null;
+        }
+
+        if (element == null || !element.isJsonObject()) {
+            return null;
+        }
+
+        return getString(element.getAsJsonObject(), KEY_METHOD);
+    }
+
     private JsonObject initialize(JsonObject aParams) {
 
         String requestedVersion = aParams == null ? null : getString(aParams, "protocolVersion"); //$NON-NLS-1$

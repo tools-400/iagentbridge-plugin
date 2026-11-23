@@ -205,6 +205,41 @@ public class McpDispatcherTest {
         assertEquals(McpDispatcher.INVALID_REQUEST, error.get("code").getAsInt());
     }
 
+    @Test
+    public void testCheckProtocolVersionHeader_accepted() {
+
+        String ping = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}";
+
+        assertNull(McpDispatcher.checkProtocolVersionHeader(ping, null));
+        for (String version : McpDispatcher.SUPPORTED_PROTOCOL_VERSIONS) {
+            assertNull(version, McpDispatcher.checkProtocolVersionHeader(ping, version));
+        }
+        assertNull(McpDispatcher.checkProtocolVersionHeader(ping, " " + McpDispatcher.LATEST_PROTOCOL_VERSION + " "));
+    }
+
+    @Test
+    public void testCheckProtocolVersionHeader_initialize() {
+        assertNull(McpDispatcher.checkProtocolVersionHeader(
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2099-01-01\"}}", "2099-01-01"));
+    }
+
+    @Test
+    public void testCheckProtocolVersionHeader_unsupported() {
+
+        JsonObject response = parse(McpDispatcher.checkProtocolVersionHeader("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}", "2099-01-01"));
+
+        assertTrue(response.get("id").isJsonNull());
+        assertEquals(McpDispatcher.INVALID_REQUEST, response.getAsJsonObject("error").get("code").getAsInt());
+        assertEquals("Unsupported protocol version in the header MCP-Protocol-Version: 2099-01-01."
+            + " Supported versions: 2025-06-18, 2025-03-26, 2024-11-05.", response.getAsJsonObject("error").get("message").getAsString());
+    }
+
+    @Test
+    public void testCheckProtocolVersionHeader_noJson() {
+        assertTrue(McpDispatcher.checkProtocolVersionHeader("{no json", "2099-01-01").contains("2099-01-01"));
+        assertTrue(McpDispatcher.checkProtocolVersionHeader("[{\"method\":\"initialize\"}]", "2099-01-01").contains("2099-01-01"));
+    }
+
     private static JsonObject parse(String aResponse) {
         return new JsonParser().parse(aResponse).getAsJsonObject();
     }
