@@ -18,13 +18,16 @@ import java.security.SecureRandom;
 import java.util.Properties;
 
 /**
- * Settings of the MCP server: port and token.
+ * Settings of the MCP server: port, token and whether it is started, when RDi
+ * starts.
  * <p>
  * The port is the one of the preferences, unless the system property
  * 'iagentbridge.port' sets it, e.g. in the VM arguments of a launch
  * configuration. The token is read from (or created in) the file
  * '.iagentbridge/token' of the home directory of the user, which all RDi
- * instances share, unless the system property 'iagentbridge.token' sets it.
+ * instances share, unless the system property 'iagentbridge.token' sets it. The
+ * system property 'iagentbridge.serverEnabled' overrides the preference, that
+ * tells whether the server is started, when RDi starts.
  * <p>
  * The class has no Eclipse dependencies, so that it can be tested outside of
  * RDi.
@@ -36,6 +39,12 @@ public class ServerSettings {
 
     /** System property with the token of the server */
     public static final String PROPERTY_TOKEN = "iagentbridge.token"; //$NON-NLS-1$
+
+    /**
+     * System property, that tells whether the server is started when RDi
+     * starts, e.g. 'false' in a test instance
+     */
+    public static final String PROPERTY_SERVER_ENABLED = "iagentbridge.serverEnabled"; //$NON-NLS-1$
 
     /** Default port, if the version of RDi is not known */
     public static final int DEFAULT_PORT = 39096;
@@ -120,6 +129,42 @@ public class ServerSettings {
      */
     public boolean isPortSetBySystemProperty() {
         return !isEmpty(properties.getProperty(PROPERTY_PORT));
+    }
+
+    /**
+     * Returns whether the server is started, when RDi starts: the value of the
+     * system property or else the one of the preferences.
+     *
+     * @param aPreferenceEnabled - value of the preferences
+     * @return <code>true</code>, if the server is started
+     * @throws IllegalArgumentException if the system property is neither 'true'
+     *         nor 'false'
+     */
+    public boolean isServerEnabled(boolean aPreferenceEnabled) {
+
+        if (!isServerEnabledSetBySystemProperty()) {
+            return aPreferenceEnabled;
+        }
+
+        String value = properties.getProperty(PROPERTY_SERVER_ENABLED).trim();
+        if (Boolean.TRUE.toString().equalsIgnoreCase(value)) {
+            return true;
+        }
+        if (Boolean.FALSE.toString().equalsIgnoreCase(value)) {
+            return false;
+        }
+
+        throw new IllegalArgumentException("Invalid value of " + PROPERTY_SERVER_ENABLED + ": " + value); //$NON-NLS-1$ //$NON-NLS-2$
+    }
+
+    /**
+     * Returns whether the system property tells, whether the server is started,
+     * when RDi starts.
+     *
+     * @return <code>true</code>, if the system property is set
+     */
+    public boolean isServerEnabledSetBySystemProperty() {
+        return !isEmpty(properties.getProperty(PROPERTY_SERVER_ENABLED));
     }
 
     /**

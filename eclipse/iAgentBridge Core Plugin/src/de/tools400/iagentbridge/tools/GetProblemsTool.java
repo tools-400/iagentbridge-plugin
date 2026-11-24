@@ -25,14 +25,12 @@ import org.eclipse.core.resources.IWorkspaceRunnable;
 import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jdt.core.IJavaModelMarker;
-import org.eclipse.ui.progress.IProgressConstants;
 
 import com.google.gson.JsonObject;
 
@@ -174,7 +172,8 @@ public class GetProblemsTool implements IMcpTool {
 
         for (IFile file : WorkspaceFiles.getFilesWithUnsavedChanges()) {
             if (files.isEmpty() ? projects.contains(file.getProject()) : files.contains(file)) {
-                report.addWarning(getPath(file) + " has unsaved changes in an RDi editor. Its problems are those of the file on disk."); //$NON-NLS-1$
+                report
+                    .addWarning(WorkspaceFiles.getPath(file) + " has unsaved changes in an RDi editor. Its problems are those of the file on disk."); //$NON-NLS-1$
             }
         }
 
@@ -212,7 +211,7 @@ public class GetProblemsTool implements IMcpTool {
         }
 
         for (String name : aNames) {
-            IProject project = findOpenProject(aRoot, name);
+            IProject project = WorkspaceProjects.findOpenProject(aRoot, name);
             if (project == null) {
                 throw new IllegalArgumentException("Project '" + name + "' is not an open project of the RDi workspace " //$NON-NLS-1$ //$NON-NLS-2$
                     + aRoot.getLocation().toOSString() + "."); //$NON-NLS-1$
@@ -221,19 +220,6 @@ public class GetProblemsTool implements IMcpTool {
         }
 
         return projects;
-    }
-
-    private static IProject findOpenProject(IWorkspaceRoot aRoot, String aName) {
-
-        // IWorkspaceRoot.getProject() throws an exception for a name of more
-        // than one segment like 'a/b'.
-        for (IProject project : aRoot.getProjects()) {
-            if (project.isOpen() && project.getName().equals(aName)) {
-                return project;
-            }
-        }
-
-        return null;
     }
 
     /**
@@ -249,13 +235,9 @@ public class GetProblemsTool implements IMcpTool {
         Job job = Job.create(aName, monitor -> workspace.run(anOperation, workspace.getRoot(), IWorkspace.AVOID_UPDATE, monitor));
         job.setRule(workspace.getRoot());
         job.setPriority(Job.BUILD);
-        // The client gets the error in the warnings. Without the property RDi
-        // opens a dialog for every call with an error.
-        job.setProperty(IProgressConstants.NO_IMMEDIATE_ERROR_PROMPT_PROPERTY, Boolean.TRUE);
-        job.schedule();
-        job.join();
 
-        return job.getResult();
+        // The client gets the error in the warnings.
+        return ToolJobs.runAndWait(job);
     }
 
     /**
@@ -266,43 +248,7 @@ public class GetProblemsTool implements IMcpTool {
     private static void addJobError(ProblemReport aReport, String aText, IStatus aResult) {
 
         if (aResult.matches(IStatus.ERROR)) {
-            aReport.addWarning(aText + ", the problems may be incomplete: " + getMessages(aResult)); //$NON-NLS-1$
-        }
-    }
-
-    /**
-     * Returns the messages of a status and of its children, each message once.
-     * The message of the result of a build, 'Errors occurred during the
-     * build.', names no reason; the messages of its children do.
-     */
-    private static String getMessages(IStatus aStatus) {
-
-        Set<String> messages = new LinkedHashSet<String>();
-        addMessages(messages, aStatus);
-
-        StringBuilder text = new StringBuilder();
-        for (String message : messages) {
-            if (text.length() > 0) {
-                text.append(' ');
-            }
-            text.append(message);
-        }
-
-        return text.toString();
-    }
-
-    private static void addMessages(Set<String> aMessages, IStatus aStatus) {
-
-        if (aStatus.getMessage() != null && !aStatus.getMessage().isEmpty()) {
-            aMessages.add(aStatus.getMessage());
-        }
-        // The result of a job of Job.create() has no children: it carries the
-        // CoreException of the operation, whose status has them.
-        if (aStatus.getException() instanceof CoreException) {
-            addMessages(aMessages, ((CoreException)aStatus.getException()).getStatus());
-        }
-        for (IStatus child : aStatus.getChildren()) {
-            addMessages(aMessages, child);
+            aReport.addWarning(aText + ", the problems may be incomplete: " + StatusMessages.getMessages(aResult)); //$NON-NLS-1$
         }
     }
 
@@ -312,7 +258,7 @@ public class GetProblemsTool implements IMcpTool {
      */
     private static void refresh(Set<IProject> aProjects, IProgressMonitor aMonitor) throws CoreException {
 
-        Set<IProject> projects = withReferencedProjects(aProjects);
+        Set<IProject> projects = WorkspaceProjects.withReferencedProjects(aProjects);
         SubMonitor progress = SubMonitor.convert(aMonitor, projects.size());
         for (IProject project : projects) {
             project.refreshLocal(IResource.DEPTH_INFINITE, progress.split(1));
@@ -332,33 +278,13 @@ public class GetProblemsTool implements IMcpTool {
         aWorkspace.build(configurations.toArray(new IBuildConfiguration[configurations.size()]), aKind, true, aMonitor);
     }
 
-    /**
-     * Returns the projects and the open projects, that they reference directly
-     * or indirectly, e.g. the projects on the Java build path.
-     */
-    private static Set<IProject> withReferencedProjects(Set<IProject> aProjects) throws CoreException {
-
-        Set<IProject> projects = new LinkedHashSet<IProject>(aProjects);
-        List<IProject> pending = new ArrayList<IProject>(aProjects);
-        while (!pending.isEmpty()) {
-            IProject project = pending.remove(pending.size() - 1);
-            for (IProject referenced : project.getReferencedProjects()) {
-                if (referenced.isOpen() && projects.add(referenced)) {
-                    pending.add(referenced);
-                }
-            }
-        }
-
-        return projects;
-    }
-
     private static void addProblems(ProblemReport aReport, IMarker[] aMarkers) {
 
         for (IMarker marker : aMarkers) {
             try {
                 IResource resource = marker.getResource();
                 Severity severity = toSeverity(marker.getAttribute(IMarker.SEVERITY, IMarker.SEVERITY_INFO));
-                String file = getPath(resource);
+                String file = WorkspaceFiles.getPath(resource);
                 String project = resource.getProject().getName();
                 int line = marker.getAttribute(IMarker.LINE_NUMBER, -1);
                 String message = marker.getAttribute(IMarker.MESSAGE, ""); //$NON-NLS-1$
@@ -395,15 +321,5 @@ public class GetProblemsTool implements IMcpTool {
         }
 
         return null;
-    }
-
-    private static String getPath(IResource aResource) {
-
-        IPath location = aResource.getLocation();
-        if (location == null) {
-            return aResource.getFullPath().toString();
-        }
-
-        return location.toString();
     }
 }

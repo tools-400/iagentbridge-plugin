@@ -16,8 +16,8 @@ the plug-in is for, its requirements and how to install it, see [README.md](READ
    ```
 
 4. Start a new Claude Code session. The tools are named `mcp__rdi096__clean_up`,
-   `mcp__rdi096__get_problems` and `mcp__rdi096__workspace_info`. Check the connection with
-   `claude mcp get rdi096`.
+   `mcp__rdi096__get_problems`, `mcp__rdi096__run_tests` and `mcp__rdi096__workspace_info`. Check
+   the connection with `claude mcp get rdi096`.
 
 The name is the name of the entry in the configuration of Claude Code (`~/.claude.json` with
 `--scope user`); the plug-in only suggests it. Remove the entry with
@@ -116,6 +116,82 @@ The tool fails with one of these messages:
 | `Argument '...' must be ...` | an argument has a wrong type or value |
 | `The refresh or the build was cancelled in RDi.` | the job was cancelled in the view *Progress* |
 
+### run_tests
+
+Runs a launch configuration of the type *JUnit* or *JUnit Plug-in Test*, like *Run* in RDi, waits
+for the end of the tests and returns their results. The view *JUnit* of RDi shows the test run as
+usual. The tool runs as job *iAgentBridge: Running the tests of* with the name of the launch
+configuration, which the view *Progress* shows and in which you can cancel it.
+
+The tool does not build: call `get_problems` first, which reads the changed files from disk and
+builds them. The tool does not start the tests, if the project of the launch configuration or a
+project, that it references, has compile errors or files with unsaved changes in an RDi editor,
+because RDi would ask in a dialog first. For a *JUnit Plug-in Test* RDi also checks the other
+plug-ins of the workspace, that the test launches; their compile errors still open the dialog, which
+must be answered in RDi.
+
+Arguments:
+
+| Name | Default | Content |
+|---|---|---|
+| `launch` | – | name of the launch configuration, as RDi shows it in *Run > Run Configurations...* |
+| `timeoutSeconds` | `600` | maximum duration of the test run, including the start of the test VM, but not a dialog of RDi before the launch; then the tool ends the test run |
+| `maxFailures` | `20` | maximum number of failed tests returned |
+
+Result:
+
+```json
+{
+  "launch": "my tests",
+  "result": "failed",
+  "counts": { "run": 3, "failures": 1, "errors": 1, "ignored": 1 },
+  "seconds": 1.0,
+  "truncated": false,
+  "failures": [
+    { "result": "error", "class": "a.BTest", "method": "testFoo",
+      "trace": "java.lang.NullPointerException\n\tat a.BTest.testFoo(BTest.java:18)" },
+    { "result": "failure", "class": "a.BTest", "method": "testBar",
+      "expected": "expected text", "actual": "actual text",
+      "trace": "org.junit.ComparisonFailure: expected:<[expected] text> but was:<[actual] text>\n\tat a.BTest.testBar(BTest.java:12)" }
+  ]
+}
+```
+
+* `result`: `passed`, if all tests ran and none failed, `failed`, if all tests ran and at least one
+  failed. Failed tests are a result, not an error of the tool. In the cases of the table below the
+  tool fails, with the same JSON.
+* `counts`: the tests, that ran (without the ignored ones), the failures (failed assertions), the
+  errors (exceptions) and the ignored tests, also of the failed tests, that `maxFailures` cuts off.
+* `failures`: `result` is `failure` or `error`. `method` is missing for an error of the whole test
+  class, e.g. in a `@BeforeClass` method. `expected` and `actual` are the values of a failed
+  comparison, e.g. of `assertEquals` with strings. `trace` is the stack trace without the frames of
+  JUnit and of reflection, like the filter of the view *JUnit*, cut after 30 lines; long values are
+  cut after 4000 characters.
+* `truncated`: `true`, if more tests failed than `maxFailures`.
+* `running` (only when the test run did not end normally): the tests, that had started and not
+  ended.
+* `warnings` (only when the test run did not end normally): why.
+
+| `result` | Reason |
+|---|---|
+| `timeout` | the test run took longer than `timeoutSeconds`; the tool terminated the launch |
+| `stopped` | the test run was stopped in the view *JUnit*. JUnit stops after the running test, so a test, that hangs, ends only with the timeout or with *Terminate* in the view *Console* |
+| `aborted` | the launch ended, before all tests ran, e.g. because a test called `System.exit()`, the test VM could not start or the launch was terminated in RDi; the view *Console* shows the output of the test VM. Also, when RDi did not start the launch, e.g. because a dialog of RDi was cancelled |
+
+The tool fails with one of these messages:
+
+| Message | Reason |
+|---|---|
+| `Launch configuration '...' not found. JUnit launch configurations of RDi: ...` | there is no launch configuration of that name |
+| `Launch configuration '...' is of type '...', not of type JUnit or JUnit Plug-in Test. ...` | the launch configuration runs no JUnit tests |
+| `The tests were not started, because RDi would ask in a dialog first. ...` | compile errors or files with unsaved changes, see above |
+| `The test run was cancelled in RDi.` | the job was cancelled in the view *Progress*; the tool terminated the launch |
+| `The launch failed: ...` | RDi could not start the launch, e.g. because the project of the launch configuration does not exist |
+| `Argument '...' is missing.`, `Argument '...' must be ...` | `launch` is missing, or an argument has a wrong type or value |
+
+The server handles one call after the other: while the tests run, calls of other tools wait, also
+those of other agents.
+
 ### workspace_info
 
 Describes the RDi instance, the server runs in: product and version, Eclipse platform, Java,
@@ -171,6 +247,7 @@ arguments of a launch configuration:
 | Property | Content |
 |---|---|
 | `iagentbridge.port` | port of the server; the preference page shows it and disables the field *Port* |
+| `iagentbridge.serverEnabled` | `true` or `false`: whether RDi starts the server, instead of the preference *Start the server when RDi starts*; the preference page shows it and disables the check box. *Start* starts the server all the same |
 | `iagentbridge.token` | token, that the client must send as `Authorization: Bearer <token>`, instead of the token file |
 
 ## Test instances
@@ -178,9 +255,9 @@ arguments of a launch configuration:
 A test instance started from the workspace (*Run As > Eclipse Application*) starts a server, too,
 if the plug-in is part of the launch configuration. The launch configurations of iAgentBridge set
 the ports `39196`, `39198` and `39199` for RDi 9.6, 9.8 and 9.9. In other launch configurations
-either set `-Diagentbridge.port=...` or remove the plug-in. Otherwise the instance, that starts
-first, gets the port, and the other one shows the error on the preference page and in the *Error
-Log* view.
+set `-Diagentbridge.port=...`, `-Diagentbridge.serverEnabled=false` or remove the plug-in, e.g. in
+a *JUnit Plug-in Test*, that `run_tests` starts. Otherwise the instance, that starts first, gets
+the port, and the other one shows the error on the preference page and in the *Error Log* view.
 
 ## Security
 

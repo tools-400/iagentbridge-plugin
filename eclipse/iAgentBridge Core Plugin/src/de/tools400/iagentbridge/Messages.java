@@ -18,6 +18,7 @@ public class Messages extends NLS {
     public static String Label_Group_Server;
     public static String Label_Start_server;
     public static String Tooltip_Start_server;
+    public static String Label_Start_server_set_by_system_property_A_B;
     public static String Label_Port_colon;
     public static String Tooltip_Port;
     public static String Label_Port_set_by_system_property_A_B;
@@ -44,6 +45,7 @@ public class Messages extends NLS {
 
     public static String Task_Refreshing_projects;
     public static String Task_Building_projects;
+    public static String Task_Running_tests_A;
 
     static {
         // initialize resource bundle

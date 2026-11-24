@@ -30,6 +30,35 @@ public final class ToolArguments {
     }
 
     /**
+     * Returns an argument, that is a string.
+     *
+     * @param anArguments - arguments of the tool
+     * @param aName - name of the argument
+     * @return value, never empty or blank
+     * @throws IllegalArgumentException if the argument is missing, blank or not
+     *         a string
+     * @since 1.1.0
+     */
+    public static String getString(JsonObject anArguments, String aName) {
+
+        JsonElement element = anArguments.get(aName);
+        if (isMissing(element)) {
+            throw new IllegalArgumentException("Argument '" + aName + "' is missing."); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+
+        if (!isString(element)) {
+            throw new IllegalArgumentException("Argument '" + aName + "' must be a string."); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+
+        String value = element.getAsString();
+        if (value.trim().isEmpty()) {
+            throw new IllegalArgumentException("Argument '" + aName + "' must not be empty."); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+
+        return value;
+    }
+
+    /**
      * Returns an argument, that is an array of strings. A single string is
      * accepted as an array with one element.
      *

@@ -18,14 +18,16 @@ import org.eclipse.core.filebuffers.IFileBuffer;
 import org.eclipse.core.filebuffers.ITextFileBuffer;
 import org.eclipse.core.filebuffers.LocationKind;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspaceRoot;
+import org.eclipse.core.runtime.IPath;
 
 import de.tools400.iagentbridge.mcp.ToolArguments;
 
 /**
  * Finds the files of the RDi workspace, that belong to the paths, which a
- * client passes to a tool, and tells, which files have unsaved changes in an
- * editor of RDi.
+ * client passes to a tool, tells, which files have unsaved changes in an editor
+ * of RDi, and returns the paths of resources for the client.
  */
 final class WorkspaceFiles {
 
@@ -93,5 +95,22 @@ final class WorkspaceFiles {
         }
 
         return files;
+    }
+
+    /**
+     * Returns the path of a resource, that a tool returns to the client.
+     *
+     * @param aResource - file, folder or project
+     * @return absolute path in the local file system or, if the resource has
+     *         none, its path in the workspace
+     */
+    static String getPath(IResource aResource) {
+
+        IPath location = aResource.getLocation();
+        if (location == null) {
+            return aResource.getFullPath().toString();
+        }
+
+        return location.toString();
     }
 }

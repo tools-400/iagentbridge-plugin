@@ -27,6 +27,22 @@ import de.tools400.iagentbridge.mcp.ToolArguments;
 public class ToolArgumentsTest {
 
     @Test
+    public void testGetString() {
+        assertEquals("iAgentBridge JUnit", ToolArguments.getString(arguments("{\"launch\":\"iAgentBridge JUnit\"}"), "launch"));
+        assertEquals(" a ", ToolArguments.getString(arguments("{\"launch\":\" a \"}"), "launch"));
+    }
+
+    @Test
+    public void testGetString_invalid() {
+        assertInvalid(a -> ToolArguments.getString(a, "launch"), "{}", "Argument 'launch' is missing.");
+        assertInvalid(a -> ToolArguments.getString(a, "launch"), "{\"launch\":null}", "Argument 'launch' is missing.");
+        assertInvalid(a -> ToolArguments.getString(a, "launch"), "{\"launch\":\"\"}", "Argument 'launch' must not be empty.");
+        assertInvalid(a -> ToolArguments.getString(a, "launch"), "{\"launch\":\" \"}", "Argument 'launch' must not be empty.");
+        assertInvalid(a -> ToolArguments.getString(a, "launch"), "{\"launch\":5}", "Argument 'launch' must be a string.");
+        assertInvalid(a -> ToolArguments.getString(a, "launch"), "{\"launch\":[\"a\"]}", "Argument 'launch' must be a string.");
+    }
+
+    @Test
     public void testGetStringList_array() {
         assertEquals(Arrays.asList("a", "b"), ToolArguments.getStringList(arguments("{\"files\":[\"a\",\"b\"]}"), "files"));
     }

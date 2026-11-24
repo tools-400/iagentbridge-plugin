@@ -12,6 +12,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
@@ -99,6 +100,49 @@ public class ServerSettingsTest {
     @Test(expected = IllegalArgumentException.class)
     public void testGetPort_preferenceOutOfRange() {
         new ServerSettings(properties, 0).getPort();
+    }
+
+    @Test
+    public void testIsServerEnabled_preference() {
+
+        ServerSettings settings = new ServerSettings(properties, PREFERENCE_PORT);
+
+        assertTrue(settings.isServerEnabled(true));
+        assertFalse(settings.isServerEnabled(false));
+        assertFalse(settings.isServerEnabledSetBySystemProperty());
+    }
+
+    @Test
+    public void testIsServerEnabled_property() {
+
+        properties.setProperty(ServerSettings.PROPERTY_SERVER_ENABLED, " FALSE ");
+        ServerSettings settings = new ServerSettings(properties, PREFERENCE_PORT);
+
+        assertFalse(settings.isServerEnabled(true));
+        assertTrue(settings.isServerEnabledSetBySystemProperty());
+
+        properties.setProperty(ServerSettings.PROPERTY_SERVER_ENABLED, "true");
+
+        assertTrue(settings.isServerEnabled(false));
+    }
+
+    @Test
+    public void testIsServerEnabled_emptyProperty() {
+        properties.setProperty(ServerSettings.PROPERTY_SERVER_ENABLED, " ");
+        assertTrue(new ServerSettings(properties, PREFERENCE_PORT).isServerEnabled(true));
+    }
+
+    @Test
+    public void testIsServerEnabled_invalidProperty() {
+
+        properties.setProperty(ServerSettings.PROPERTY_SERVER_ENABLED, "no");
+
+        try {
+            new ServerSettings(properties, PREFERENCE_PORT).isServerEnabled(true);
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Invalid value of iagentbridge.serverEnabled: no", e.getMessage());
+        }
     }
 
     @Test

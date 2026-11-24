@@ -14,6 +14,9 @@ RDi as tools - with the settings, that apply in RDi.
 * **Problems**: builds projects of the workspace and returns the errors and warnings of the view
   *Problems*, e.g. Java compile errors and errors in `MANIFEST.MF`, so that the agent can check,
   that its code compiles.
+* **Tests**: runs a JUnit or JUnit Plug-in Test launch configuration of RDi and returns the
+  results: which tests failed, with expected and actual value and a short stack trace. A timeout
+  ends tests, that hang.
 * **Workspace information**: tells the agent, which RDi, workspace and Java projects it talks to
   and which clean-up profile applies to each project.
 * **Tools of other plug-ins**: other RDi plug-ins can add tools to the server, e.g. `format_rpg` of

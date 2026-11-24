@@ -46,12 +46,12 @@ Packages of `iAgentBridge Core Plugin`:
 |---|---|
 | `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `ToolCollection` (the tools of the server), `ContributedTools` (the tools of other plug-ins), `Messages` |
 | `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `McpResponse`, `IMcpErrorLog`, `IMcpTool`, `McpToolResult`, `ToolArguments`; exported for the tools of other plug-ins |
-| `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `GetProblemsTool`, `WorkspaceInfoTool` and their helpers, e.g. `WorkspaceFiles` (file of the workspace for a path of the client, unsaved changes) and `ProblemReport` (result of `get_problems`) |
+| `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `GetProblemsTool`, `RunTestsTool`, `WorkspaceInfoTool` and their helpers, e.g. `WorkspaceFiles` (file of the workspace for a path of the client, unsaved changes), `WorkspaceProjects` (projects and the projects, that they reference), `ToolJobs` (runs a job and waits for it), `StatusMessages`, `ProblemReport` (result of `get_problems`), `TestRun` (launch and listeners of `run_tests`) and `TestRunReport` (result of `run_tests`) |
 | `de.tools400.iagentbridge.preferences` | `Preferences` and their defaults |
 | `de.tools400.iagentbridge.preferencepages` | `IAgentBridgePreferencePage` |
 
-`ServerSettings`, `ClientCommands`, `ToolCollection`, `ProblemReport` and the package `mcp` have no
-Eclipse dependencies, so that the tests run outside of RDi. Gson is imported with `Import-Package` from
+`ServerSettings`, `ClientCommands`, `ToolCollection`, `ProblemReport`, `TestRunReport` and the
+package `mcp` have no Eclipse dependencies, so that the tests run outside of RDi. Gson is imported with `Import-Package` from
 RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e.g.
 `new JsonParser().parse(...)`.
 
@@ -87,7 +87,7 @@ RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e
   `-32603 Internal error` and is written to the error log as well. The error log is an
   `IMcpErrorLog`, which `IAgentBridgePlugin` passes to `McpDispatcher`.
 * A single thread handles the requests one after the other, so that two tools never run at the
-  same time.
+  same time. While `run_tests` waits for the tests, the server answers no other request.
 
 ### Settings
 
@@ -97,7 +97,9 @@ RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e
   rule as the server name `rdi096` of `ClientCommands`. Without a known version it is 39096.
 * `ServerSettings` takes the port of the system property `iagentbridge.port`, if it is set, else
   the one of the preferences, and the token of `iagentbridge.token` or else of the token file.
-* `serverEnabled` is read only by `IAgentBridgeStartup` (`startServer()`). *Apply* on the
+* `serverEnabled` is read only by `IAgentBridgeStartup` (`startServer()`), through
+  `ServerSettings.isServerEnabled()`: the system property `iagentbridge.serverEnabled` (`true` or
+  `false`) overrides it, any other value is an error of the start. *Apply* on the
   preference page restarts a running server, if its port changed; *Start* saves and calls
   `startServerNow()`, which ignores `serverEnabled`. There is no stop: a server runs until RDi
   ends. *New Token* writes a new token and restarts a running server.
@@ -117,9 +119,11 @@ here: it checks the keys of the save actions (`sp_...`).
 ### Problems
 
 `GetProblemsTool` runs two jobs with the rule of the workspace root, one after the other; the
-thread of the server waits for each with `join()`. The view *Progress* shows them, and the user can
-cancel them; then the tool fails. A job, that ends with an error, e.g. because a builder throws an
-exception, opens no dialog in RDi (`IProgressConstants.NO_IMMEDIATE_ERROR_PROMPT_PROPERTY`). The
+thread of the server waits for each with `join()` (`ToolJobs`). The view *Progress* shows them, and
+the user can cancel them; then the tool fails. When the thread of the server is interrupted, because
+the server stops, e.g. after *New Token*, `ToolJobs` cancels the job. A job, that ends with an
+error, e.g. because a builder throws an exception, opens no dialog in RDi
+(`IProgressConstants.NO_IMMEDIATE_ERROR_PROMPT_PROPERTY`). The
 tool names the error in `warnings` and returns the problems all the same, because the build goes
 on with the other builders and projects. The warning contains the messages of all children of the
 status, because the message of the status itself (*Errors occurred during the build.*) names no
@@ -146,6 +150,38 @@ their projects themselves: when the build path is broken, the Java builder remov
 all files and adds one to the project. The files with unsaved changes come from the file buffers
 (`WorkspaceFiles`, like the check of `CleanUpTool`), so an editor, that does not use file buffers,
 is not seen.
+
+### Test runs
+
+`RunTestsTool` finds the launch configuration by its name. A type of launch configuration runs
+JUnit tests, if its delegate for `run` is a `JUnitLaunchConfigurationDelegate` of JDT or a subclass,
+e.g. the one of a *JUnit Plug-in Test* of PDE: the IDs of the types and the attributes of JDT JUnit
+(`JUnitLaunchConfigurationConstants`) are internal in RDi 9.6.
+
+`ILaunchConfiguration.launch()` always runs the checks of the delegate, also without a build: JDT
+asks in a dialog, if the project of the launch configuration or a project, that it references, has
+compile errors, and RDi asks to save editors with unsaved changes. The tool checks the same before
+the launch: the markers of the Java compiler (`IJavaModelMarker.JAVA_MODEL_PROBLEM_MARKER`, without
+subtypes) with severity error and the file buffers with unsaved changes in these projects. PDE
+checks all plug-ins of the workspace, that a *JUnit Plug-in Test* launches; the tool does not.
+
+`TestRun` runs in a job without a scheduling rule, which the thread of the server joins. It
+registers a `TestRunListener` of `JUnitCore` and an `ILaunchesListener2` and launches without a
+build. The launch gets a monitor, that passes only the cancellation of the job on; the view
+*Progress* shows the running test instead of the progress of the launch, because JDT does not tell
+the number of tests in advance. The timeout starts, when `launch()` returns, i.e. after a dialog of
+RDi. A launch, that RDi did not start, e.g. because a dialog was cancelled, has no process; it ends
+the test run at once (`Launch.isTerminated()` is `false` for such a launch, so the tool must not wait
+for its end). It recognizes its test run by `ITestRunSession.getTestRunName()`, the name of the launch
+configuration, because the API of JDT has no link from a test run to its launch. JDT calls
+`sessionFinished()` only, when the test run completes or is stopped in the view *JUnit*, not when
+the launch is terminated or the test VM exits (`sessionTerminated` of the internal model). So the
+results are collected test by test in `testCaseFinished()`, the failures of test classes (e.g. of a
+`@BeforeClass` method) in `sessionFinished()`, and the waiting ends with `sessionFinished()`, 5
+seconds after the end of the launch (`aborted`), at the timeout or when the job is cancelled; in
+the last two cases the tool terminates the launch. Then it waits up to 10 seconds for the end of
+the launch, e.g. of the workbench of a *JUnit Plug-in Test*. `TestRunReport` counts the results,
+filters and cuts the stack traces (the default filters of the view *JUnit*) and builds the JSON.
 
 ### Tools
 
@@ -181,7 +217,9 @@ Test*. `McpHttpServerTest` starts the server on a free port and sends raw HTTP r
 tools the server accepts: names, descriptions, input schemas, duplicate names and tools, that fail
 to describe themselves. `ProblemReportTest` checks the result of `get_problems`: order, severity
 filter, counts, cut and JSON; the build and the markers themselves need RDi and are tested by hand
-with a test instance.
+with a test instance. `TestRunReportTest` checks the result of `run_tests`: counts, ends, cut,
+filter of the stack traces and JSON; the launch and the events of JDT are tested by hand with a test
+instance and test projects with green, red and hanging tests.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the

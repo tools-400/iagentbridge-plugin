@@ -80,6 +80,14 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
         enabled.getDescriptionControl(server).setToolTipText(Messages.Tooltip_Start_server);
         addField(enabled);
 
+        if (settings.isServerEnabledSetBySystemProperty()) {
+            enabled.setEnabled(false, server);
+            Label enabledInfo = new Label(server, SWT.NONE);
+            enabledInfo.setText(NLS.bind(Messages.Label_Start_server_set_by_system_property_A_B, ServerSettings.PROPERTY_SERVER_ENABLED,
+                System.getProperty(ServerSettings.PROPERTY_SERVER_ENABLED).trim()));
+            enabledInfo.setLayoutData(createSpanData(NUM_COLUMNS));
+        }
+
         IntegerFieldEditor port = new IntegerFieldEditor(Preferences.PORT, Messages.Label_Port_colon, server);
         port.setValidRange(ServerSettings.MIN_PORT, ServerSettings.MAX_PORT);
         port.getLabelControl(server).setToolTipText(Messages.Tooltip_Port);
