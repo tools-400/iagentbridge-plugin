@@ -259,6 +259,8 @@ RDi; the agent sees them in a new session, e.g. as `mcp__rdi096__format_rpg`.
 | Tool | Plug-in | Content |
 |---|---|---|
 | `format_rpg` | optional feature *iRPGFormatter iAgentBridge* of iRPGFormatter | formats RPG sources like *iFormat* of RDi, see the usage of iRPGFormatter |
+| `ifs_projects_compile` | optional feature *IFS Projects iAgentBridge* of IFS Projects | compiles a file of a local IFS project on the IBM i like *Build on IBM i*, see the usage of IFS Projects |
+| `ifs_projects_check_syntax` | optional feature *IFS Projects iAgentBridge* of IFS Projects | checks the syntax of an RPGLE or SQLRPGLE file of a local IFS project on the IBM i like *Check Syntax*, see the usage of IFS Projects |
 
 The message `iAgentBridge server listening on ...` in the *Error Log* view ends with the names of
 all tools, that the server offers. A tool of another plug-in, that fails to start, is left out;

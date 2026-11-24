@@ -22,7 +22,9 @@ RDi as tools - with the settings, that apply in RDi.
 * **Workspace information**: tells the agent, which RDi, workspace and Java projects it talks to
   and which clean-up profile applies to each project.
 * **Tools of other plug-ins**: other RDi plug-ins can add tools to the server, e.g. `format_rpg` of
-  iRPGFormatter, which formats RPG sources with the settings of RDi.
+  iRPGFormatter, which formats RPG sources with the settings of RDi, and `ifs_projects_compile` and
+  `ifs_projects_check_syntax` of IFS Projects, which compile the files of local IFS projects on the
+  IBM i.
 * **Preference page**: start of the server, port, token and the ready-made command, that
   registers the server in Claude Code.
 * **Local and protected**: the server listens on `127.0.0.1` only and requires a token.

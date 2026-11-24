@@ -1240,6 +1240,8 @@
         <setEntry value="de.tools400.ifsprojects.core.plugin@default:default"/>
         <setEntry value="de.tools400.ifsprojects.cplcas.junit@default:false"/>
         <setEntry value="de.tools400.ifsprojects.cplcas.plugin@default:default"/>
+        <setEntry value="de.tools400.ifsprojects.iagentbridge.junit@default:false"/>
+        <setEntry value="de.tools400.ifsprojects.iagentbridge.plugin@default:default"/>
         <setEntry value="de.tools400.ifsprojects.junit@default:false"/>
         <setEntry value="de.tools400.ifsprojects.strpreprc.junit@default:false"/>
         <setEntry value="de.tools400.ifsprojects.strpreprc.plugin@default:default"/>

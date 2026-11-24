@@ -31,7 +31,8 @@ How the plug-in works, how to add a tool and how to run the tests. For its use, 
   `-Diagentbridge.port=39196`, `39198` or `39199`, so that a test instance does not take the port
   of the RDi it was started from. They contain the plug-ins of iRPGFormatter and its plug-in
   `iRPGFormatter iAgentBridge Plugin` (repository `irpgformatter-plugin`), so that a test instance
-  offers the tool `format_rpg`, too.
+  offers the tool `format_rpg`, too, and the plug-in `IFS Projects iAgentBridge Plugin` (repository
+  `ifs-projects-plugin`) with the tools `ifs_projects_compile` and `ifs_projects_check_syntax`.
 * Release: `build/iAgentBridge Build/build/build.xml` (same script as IFS Projects, iRPGFormatter,
   iRPGUnit, iSphere, JCRCMDS and Rapid Fire, settings in `build.properties`: no manual, no
   Eclipse Marketplace). Update site and home page go to `docs/` of the repository
