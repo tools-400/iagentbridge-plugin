@@ -22,6 +22,7 @@ import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.IWorkspaceRoot;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.ICoreRunnable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.OperationCanceledException;
@@ -84,7 +85,8 @@ public class ImportProjectsTool implements IMcpTool {
         ImportReport report = new ImportReport();
         // No scheduling rule: RDi can save and build, while the tool searches
         // the projects. Only the import holds the rule of the workspace root.
-        Job job = Job.create(Messages.Task_Importing_projects, monitor -> searchAndImport(paths, report, monitor));
+        // The cast avoids "create(...) is ambiguous" in RDi 9.8 and 9.9.
+        Job job = Job.create(Messages.Task_Importing_projects, (ICoreRunnable)monitor -> searchAndImport(paths, report, monitor));
         job.setPriority(Job.LONG);
         IStatus result = ToolJobs.runAndWait(job);
         if (result.getSeverity() == IStatus.CANCEL) {

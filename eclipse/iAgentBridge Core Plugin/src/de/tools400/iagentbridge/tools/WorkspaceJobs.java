@@ -11,6 +11,7 @@ package de.tools400.iagentbridge.tools;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.IWorkspaceRunnable;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.ICoreRunnable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.jobs.Job;
 
@@ -40,7 +41,8 @@ final class WorkspaceJobs {
     static IStatus runAndWait(String aName, IWorkspaceRunnable anOperation) throws InterruptedException {
 
         IWorkspace workspace = ResourcesPlugin.getWorkspace();
-        Job job = Job.create(aName, monitor -> workspace.run(anOperation, workspace.getRoot(), IWorkspace.AVOID_UPDATE, monitor));
+        // The cast avoids "create(...) is ambiguous" in RDi 9.8 and 9.9.
+        Job job = Job.create(aName, (ICoreRunnable)monitor -> workspace.run(anOperation, workspace.getRoot(), IWorkspace.AVOID_UPDATE, monitor));
         job.setRule(workspace.getRoot());
         job.setPriority(Job.BUILD);
 

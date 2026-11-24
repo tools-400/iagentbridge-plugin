@@ -23,6 +23,7 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspaceRoot;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.ICoreRunnable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.debug.core.DebugPlugin;
@@ -251,7 +252,8 @@ public class RunTestsTool implements IMcpTool {
      */
     private static IStatus runJob(String aName, TestRun aTestRun) throws InterruptedException {
 
-        Job job = Job.create(aName, monitor -> aTestRun.run(monitor));
+        // The cast avoids "create(...) is ambiguous" in RDi 9.8 and 9.9.
+        Job job = Job.create(aName, (ICoreRunnable)monitor -> aTestRun.run(monitor));
         job.setPriority(Job.LONG);
 
         return ToolJobs.runAndWait(job);
