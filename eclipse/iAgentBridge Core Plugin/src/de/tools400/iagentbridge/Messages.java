@@ -46,6 +46,7 @@ public class Messages extends NLS {
     public static String Task_Refreshing_projects;
     public static String Task_Building_projects;
     public static String Task_Running_tests_A;
+    public static String Task_Importing_projects;
 
     static {
         // initialize resource bundle

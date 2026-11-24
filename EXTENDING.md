@@ -22,6 +22,7 @@ The API is in the exported package `de.tools400.iagentbridge.mcp`:
 | `IMcpTool` | the tool: name, description, JSON schema of the arguments and `execute()` |
 | `McpToolResult` | the result: `success(text)` or `error(text)` |
 | `ToolArguments` | reads the arguments: `getStringList()`, since 1.1.0 also `getString()` (a string, that must not be empty) and the optional arguments `getOptionalStringList()`, `getChoice()` (one of fixed strings) and `getInt()`, and `toLocalPath()`, which turns a path of Git Bash like `/c/dir/file` into `C:/dir/file` |
+| `ToolJobs` | since 1.1.0: `runAndWait()` schedules a job, which the view *Progress* shows and in which the user can cancel it, and waits for its end, see *Jobs* in [Rules](#4-rules) |
 
 The other classes of the package, `McpDispatcher`, `McpHttpServer`, `McpResponse` and
 `IMcpErrorLog`, are internal; the rest of the plug-in is not exported.
@@ -137,6 +138,14 @@ not for a user. The agent sees the text of the result; JSON is easy for it to re
 * **Threads**: the server handles one request after the other in a thread of its own, never in the
   UI thread. A tool may block until its work is done, e.g. join a job. Work with the UI, e.g. to
   check the editors, in `Display.syncExec()`.
+* **Jobs**: run long work in a job with `ToolJobs.runAndWait(job)`, so that the user sees it in the
+  view *Progress* and can cancel it. Set rule and priority of the job, but do not schedule it and
+  do not call `setUser(true)`: Eclipse would open a progress dialog. A job, that fails, opens no
+  error dialog; the method returns its result, also of a job, that has been cancelled while it
+  ran, and `CANCEL_STATUS`, if the job has been cancelled before it ran. When the server stops,
+  e.g. after *New Token*, the waiting thread is
+  interrupted: the method cancels the job and throws the `InterruptedException` without waiting for
+  the end of the job. Requires `bundle-version="[1.1.0,2.0.0)"`.
 * **Life cycle**: the server creates the tools, when it starts - when RDi starts, and when the
   preference page restarts it. Changes to the installed tools need a restart of RDi.
 * **Errors**: a tool, that cannot be created, that fails to describe itself or whose name is

@@ -16,8 +16,8 @@ the plug-in is for, its requirements and how to install it, see [README.md](READ
    ```
 
 4. Start a new Claude Code session. The tools are named `mcp__rdi096__clean_up`,
-   `mcp__rdi096__get_problems`, `mcp__rdi096__run_tests` and `mcp__rdi096__workspace_info`. Check
-   the connection with `claude mcp get rdi096`.
+   `mcp__rdi096__get_problems`, `mcp__rdi096__import_projects`, `mcp__rdi096__run_tests` and
+   `mcp__rdi096__workspace_info`. Check the connection with `claude mcp get rdi096`.
 
 The name is the name of the entry in the configuration of Claude Code (`~/.claude.json` with
 `--scope user`); the plug-in only suggests it. Remove the entry with
@@ -115,6 +115,58 @@ The tool fails with one of these messages:
 | `Pass either 'projects' or 'files', not both.` | both arguments are set |
 | `Argument '...' must be ...` | an argument has a wrong type or value |
 | `The refresh or the build was cancelled in RDi.` | the job was cancelled in the view *Progress* |
+
+### import_projects
+
+Imports existing projects into the RDi workspace, like *File > Import... > General > Existing
+Projects into Workspace* without *Copy projects into workspace*: the projects stay, where they are,
+e.g. in a Git working copy. An agent calls it, when a project, that it wants to build or test with
+the other tools, is not in the workspace yet. The tool runs as job *iAgentBridge: Importing
+projects*, which the view *Progress* shows and in which you can cancel it.
+
+Argument:
+
+| Name | Content |
+|---|---|
+| `paths` | absolute paths of directories: the directory of a project, which contains the file `.project`, or a directory, below which the tool searches projects, e.g. the working copy of a repository |
+
+The tool searches like the wizard with *Search for nested projects* turned off: it does not search
+the directories of the projects, that it finds, and it skips the directories `.metadata` and `.git`.
+A project gets the name of its file `.project` and is opened. Afterwards RDi builds it, if *Project
+> Build Automatically* is on; `get_problems` builds it and returns its problems.
+
+Result, for each project:
+
+```json
+{
+  "counts": { "imported": 1, "existing": 1, "failed": 1 },
+  "projects": [
+    { "result": "imported", "project": "my.lib", "location": "C:/git/repo/my.lib" },
+    { "result": "existing", "project": "my.app", "location": "C:/git/repo/my.app" },
+    { "result": "failed", "project": "my.test", "location": "C:/git/repo/my.test",
+      "message": "A project of that name is already in the RDi workspace at C:/git/old/my.test." }
+  ]
+}
+```
+
+* `imported`: the project is new in the workspace.
+* `existing`: the directory is already a project of the workspace, maybe with another name;
+  `message` says, if it is closed.
+* `failed`: `message` tells why, see the table below. `project` is missing, if the tool found no
+  project.
+
+The tool fails with the same JSON, if a project could not be imported, with `"cancelled": true`,
+if the import was cancelled in the view *Progress*, and with `error`, if the import ended with an
+error of RDi; the projects listed have been handled before.
+
+| Message | Reason |
+|---|---|
+| `The path is not absolute.` | e.g. `.` |
+| `Directory not found.` | the path does not exist |
+| `Not a directory.` | the path is a file, e.g. the file `.project` |
+| `No project found: ...` | neither the directory nor a directory below it contains a file `.project` |
+| `A project of that name is already in the RDi workspace at ...` | another directory is imported under the same name |
+| messages of RDi | e.g. the file `.project` cannot be read, or the directory is directly in the directory of the workspace, but has another name than the project |
 
 ### run_tests
 

@@ -21,7 +21,6 @@ import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.IWorkspaceRoot;
-import org.eclipse.core.resources.IWorkspaceRunnable;
 import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
@@ -139,11 +138,12 @@ public class GetProblemsTool implements IMcpTool {
             // Two jobs: PDE changes the class path of a project, whose
             // MANIFEST.MF changed, only after the refresh, often in a job of
             // its own. The build job is scheduled after it and runs after it.
-            IStatus refreshResult = runJob(Messages.Task_Refreshing_projects, monitor -> refresh(projects, monitor));
+            // The client gets the errors of the jobs in the warnings.
+            IStatus refreshResult = WorkspaceJobs.runAndWait(Messages.Task_Refreshing_projects, monitor -> refresh(projects, monitor));
             if (refreshResult.getSeverity() == IStatus.CANCEL) {
                 return McpToolResult.error(CANCELED);
             }
-            IStatus buildResult = runJob(Messages.Task_Building_projects, monitor -> build(workspace, projects, kind, monitor));
+            IStatus buildResult = WorkspaceJobs.runAndWait(Messages.Task_Building_projects, monitor -> build(workspace, projects, kind, monitor));
             if (buildResult.getSeverity() == IStatus.CANCEL) {
                 return McpToolResult.error(CANCELED);
             }
@@ -220,24 +220,6 @@ public class GetProblemsTool implements IMcpTool {
         }
 
         return projects;
-    }
-
-    /**
-     * Runs an operation in a job with the rule of the workspace root, which the
-     * view Progress shows and in which the user can cancel it, and waits for
-     * its end.
-     *
-     * @return result of the job
-     */
-    private static IStatus runJob(String aName, IWorkspaceRunnable anOperation) throws InterruptedException {
-
-        IWorkspace workspace = ResourcesPlugin.getWorkspace();
-        Job job = Job.create(aName, monitor -> workspace.run(anOperation, workspace.getRoot(), IWorkspace.AVOID_UPDATE, monitor));
-        job.setRule(workspace.getRoot());
-        job.setPriority(Job.BUILD);
-
-        // The client gets the error in the warnings.
-        return ToolJobs.runAndWait(job);
     }
 
     /**

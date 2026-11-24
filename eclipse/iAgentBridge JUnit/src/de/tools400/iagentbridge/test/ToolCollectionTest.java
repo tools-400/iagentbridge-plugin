@@ -71,6 +71,7 @@ public class ToolCollectionTest {
         assertTrue(tools.add(new TestTool("a"), "x"));
         assertTrue(tools.add(new TestTool("Format-RPG_2"), "x"));
         assertTrue(tools.add(new TestTool("get_problems"), "x"));
+        assertTrue(tools.add(new TestTool("import_projects"), "x"));
         assertTrue(tools.add(new TestTool("run_tests"), "x"));
         assertTrue(tools.add(new TestTool(repeat('n', 64)), "x"));
 

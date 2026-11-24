@@ -17,6 +17,8 @@ RDi as tools - with the settings, that apply in RDi.
 * **Tests**: runs a JUnit or JUnit Plug-in Test launch configuration of RDi and returns the
   results: which tests failed, with expected and actual value and a short stack trace. A timeout
   ends tests, that hang.
+* **Import**: imports existing projects, e.g. of a Git working copy, into the workspace, like
+  *File > Import > Existing Projects into Workspace*, so that the agent can build and test them.
 * **Workspace information**: tells the agent, which RDi, workspace and Java projects it talks to
   and which clean-up profile applies to each project.
 * **Tools of other plug-ins**: other RDi plug-ins can add tools to the server, e.g. `format_rpg` of

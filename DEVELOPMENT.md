@@ -45,13 +45,14 @@ Packages of `iAgentBridge Core Plugin`:
 | Package | Content |
 |---|---|
 | `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `ToolCollection` (the tools of the server), `ContributedTools` (the tools of other plug-ins), `Messages` |
-| `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `McpResponse`, `IMcpErrorLog`, `IMcpTool`, `McpToolResult`, `ToolArguments`; exported for the tools of other plug-ins |
-| `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `GetProblemsTool`, `RunTestsTool`, `WorkspaceInfoTool` and their helpers, e.g. `WorkspaceFiles` (file of the workspace for a path of the client, unsaved changes), `WorkspaceProjects` (projects and the projects, that they reference), `ToolJobs` (runs a job and waits for it), `StatusMessages`, `ProblemReport` (result of `get_problems`), `TestRun` (launch and listeners of `run_tests`) and `TestRunReport` (result of `run_tests`) |
+| `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `McpResponse`, `IMcpErrorLog`, `IMcpTool`, `McpToolResult`, `ToolArguments`, and `ToolJobs` (runs a job and waits for it); exported for the tools of other plug-ins |
+| `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `GetProblemsTool`, `ImportProjectsTool`, `RunTestsTool`, `WorkspaceInfoTool` and their helpers, e.g. `WorkspaceFiles` (file of the workspace for a path of the client, unsaved changes), `WorkspaceProjects` (projects and the projects, that they reference), `WorkspaceJobs` (runs an operation on the resources in a job and waits for it), `StatusMessages`, `ProblemReport` (result of `get_problems`), `ProjectDirectories` (search of `import_projects`), `ImportReport` (result of `import_projects`), `TestRun` (launch and listeners of `run_tests`) and `TestRunReport` (result of `run_tests`) |
 | `de.tools400.iagentbridge.preferences` | `Preferences` and their defaults |
 | `de.tools400.iagentbridge.preferencepages` | `IAgentBridgePreferencePage` |
 
-`ServerSettings`, `ClientCommands`, `ToolCollection`, `ProblemReport`, `TestRunReport` and the
-package `mcp` have no Eclipse dependencies, so that the tests run outside of RDi. Gson is imported with `Import-Package` from
+`ServerSettings`, `ClientCommands`, `ToolCollection`, `ProblemReport`, `ProjectDirectories`,
+`ImportReport`, `TestRunReport` and the package `mcp` except `ToolJobs` have no Eclipse
+dependencies, so that the tests run outside of RDi. Gson is imported with `Import-Package` from
 RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e.g.
 `new JsonParser().parse(...)`.
 
@@ -119,8 +120,10 @@ here: it checks the keys of the save actions (`sp_...`).
 ### Problems
 
 `GetProblemsTool` runs two jobs with the rule of the workspace root, one after the other; the
-thread of the server waits for each with `join()` (`ToolJobs`). The view *Progress* shows them, and
-the user can cancel them; then the tool fails. When the thread of the server is interrupted, because
+thread of the server waits for each with `join()` (`WorkspaceJobs`, `ToolJobs`). The view *Progress*
+shows them, and the user can cancel them; then the tool fails. A job, that is cancelled before it
+runs, e.g. while it waits for its rule, has no result (`JobManager.cancel()` sets none);
+`ToolJobs` returns `CANCEL_STATUS` instead. When the thread of the server is interrupted, because
 the server stops, e.g. after *New Token*, `ToolJobs` cancels the job. A job, that ends with an
 error, e.g. because a builder throws an exception, opens no dialog in RDi
 (`IProgressConstants.NO_IMMEDIATE_ERROR_PROMPT_PROPERTY`). The
@@ -150,6 +153,28 @@ their projects themselves: when the build path is broken, the Java builder remov
 all files and adds one to the project. The files with unsaved changes come from the file buffers
 (`WorkspaceFiles`, like the check of `CleanUpTool`), so an editor, that does not use file buffers,
 is not seen.
+
+### Import of projects
+
+`ImportProjectsTool` does what the wizard *Existing Projects into Workspace* does without copying
+(`WizardProjectsImportPage` of `org.eclipse.ui.ide`), in a job without a scheduling rule: it
+searches the projects first, so that RDi can save and build meanwhile, and imports them in
+`IWorkspace.run()` with the rule of the workspace root.
+
+* `ProjectDirectories` searches like `collectProjectFilesFromDirectory()` without nested projects: a
+  directory with a file `.project` is a project and is not searched further, `.metadata` is
+  skipped, and the canonical paths stop links, that lead back. Unlike the wizard it also skips
+  `.git`, which contains no projects.
+* A directory, that is already the location of a project of the workspace
+  (`findContainersForLocationURI`), is reported as `existing`.
+* The project gets the name, the description and the location of `loadProjectDescription()`, like
+  in `createExistingProject()`: the location is the directory, unless it is the default location,
+  the directory of the workspace and the name of the project. `validateProjectLocationURI` checks
+  it. RDi 9.6 accepts a project in the directory of another project.
+* `open()` without `BACKGROUND_REFRESH`, unlike the wizard, so that the next tool finds all files
+  of the project.
+
+`ImportReport` builds the result; an error of one project does not stop the others.
 
 ### Test runs
 
@@ -195,8 +220,10 @@ The info message of the start lists the names of the tools.
 
 The package `de.tools400.iagentbridge.mcp` is exported with `uses:="com.google.gson"`, because
 `IMcpTool` has Gson types in its methods: a plug-in with a tool then gets the same Gson as
-iAgentBridge, although RDi 9.6 has two versions of it. Only `IMcpTool`, `McpToolResult` and
-`ToolArguments` are API, see [EXTENDING.md](EXTENDING.md).
+iAgentBridge, although RDi 9.6 has two versions of it. Only `IMcpTool`, `McpToolResult`,
+`ToolArguments` and `ToolJobs` are API, see [EXTENDING.md](EXTENDING.md). `ToolJobs` is API, because
+every tool, that runs a job, needs to wait for it like the tools of iAgentBridge; the other helpers
+of the package `tools`, e.g. `WorkspaceFiles`, stay internal.
 
 ### Adding a tool
 
@@ -219,7 +246,9 @@ to describe themselves. `ProblemReportTest` checks the result of `get_problems`:
 filter, counts, cut and JSON; the build and the markers themselves need RDi and are tested by hand
 with a test instance. `TestRunReportTest` checks the result of `run_tests`: counts, ends, cut,
 filter of the stack traces and JSON; the launch and the events of JDT are tested by hand with a test
-instance and test projects with green, red and hanging tests.
+instance and test projects with green, red and hanging tests. `ProjectDirectoriesTest` checks the
+search of `import_projects` in temporary directories and `ImportReportTest` its result; the import
+itself is tested by hand with a test instance.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the
