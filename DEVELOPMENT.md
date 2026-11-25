@@ -13,6 +13,10 @@ How the plug-in works, how to add a tool and how to run the tests. For its use, 
     with `eclipse/iAgentBridge Core Feature` the product.
   * `eclipse/iAgentBridge JUnit` (`de.tools400.iagentbridge.junit`) is a fragment with the unit
     tests.
+  * `eclipse/iAgentBridge UI Plugin` (`de.tools400.iagentbridge.ui.plugin`) is the optional plug-in
+    with the UI tools, with `eclipse/iAgentBridge UI Feature`, which requires the core feature of
+    the same or a newer version, and the fragment `eclipse/iAgentBridge UI JUnit`
+    (`de.tools400.iagentbridge.ui.junit`).
   * `eclipse/iAgentBridge Update Site`: *Build All* in `site.xml`.
   * `build/iAgentBridge Build`: the release script.
 * To install the plug-in from the sources into the running RDi, choose *File > Export... >
@@ -33,6 +37,10 @@ How the plug-in works, how to add a tool and how to run the tests. For its use, 
   `iRPGFormatter iAgentBridge Plugin` (repository `irpgformatter-plugin`), so that a test instance
   offers the tool `format_rpg`, too, and the plug-in `IFS Projects iAgentBridge Plugin` (repository
   `ifs-projects-plugin`) with the tools `ifs_projects_compile` and `ifs_projects_check_syntax`.
+  They set `-Diagentbridge.uiTools=true` and `-Diagentbridge.serverName=rdi096test` (`rdi098test`,
+  `rdi099test`), see [UI tools](#ui-tools). *Use @argfile* must stay off in them: with it, JDT
+  writes the arguments into a file, and the command line, from which the forwarding reads port and
+  token, has no `-Diagentbridge...` any more.
 * Release: `build/iAgentBridge Build/build/build.xml` (same script as IFS Projects, iRPGFormatter,
   iRPGUnit, iSphere, JCRCMDS and Rapid Fire, settings in `build.properties`: no manual, no
   Eclipse Marketplace). Update site and home page go to `docs/` of the repository
@@ -56,6 +64,19 @@ Packages of `iAgentBridge Core Plugin`:
 dependencies, so that the tests run outside of RDi. Gson is imported with `Import-Package` from
 RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e.g.
 `new JsonParser().parse(...)`.
+
+Packages of `iAgentBridge UI Plugin`, see [UI tools](#ui-tools):
+
+| Package | Content |
+|---|---|
+| `de.tools400.iagentbridge.ui.tools` | `AbstractUiTool` (executes in a test instance or forwards), `UiSnapshotTool`, `UiScreenshotTool`, `UiArguments`, `ScreenshotFiles`, `ImageDataScaler` and `ImageScaler` (scale a screenshot down) |
+| `de.tools400.iagentbridge.ui.forwarding` | `TestInstanceFinder` (the test instance among the launches), `Forwarding` (which test instance, which token), `ForwardingClient` (HTTP), `ForwardedResult` (JSON-RPC response to `McpToolResult`), `TestInstance`, `CommandLine`, `TokenFile` |
+| `de.tools400.iagentbridge.ui.swt` | `UiThread` (code in the UI thread with a timeout), `WidgetRefs`, `ShellPicker`, `NativeDialogs`, `WidgetModelBuilder` (widgets to the model), `WorkbenchStateBuilder`, `ShellPainter` (image of a shell) |
+| `de.tools400.iagentbridge.ui.model` | the snapshot without SWT types: `WidgetNode`, `WorkbenchState`, `SnapshotWriter` (text), `LocatorBuilder`, `Mnemonics` |
+
+The packages `model` and `forwarding` except `TestInstanceFinder`, and `UiArguments`,
+`ScreenshotFiles` and `ImageScaler` have no Eclipse dependencies, so that the tests run outside of
+RDi. The package `tools` uses `swt`, not the other way round.
 
 ### Protocol
 
@@ -209,6 +230,64 @@ the last two cases the tool terminates the launch. Then it waits up to 10 second
 the launch, e.g. of the workbench of a *JUnit Plug-in Test*. `TestRunReport` counts the results,
 filters and cuts the stack traces (the default filters of the view *JUnit*) and builds the JSON.
 
+### UI tools
+
+`ui_snapshot` and `ui_screenshot` of `iAgentBridge UI Plugin` come into the server by the extension
+point. `AbstractUiTool.execute()` executes a tool, if the system property `iagentbridge.uiTools`
+is `true` (a test instance); otherwise it forwards the call and never reads the user interface of
+its own RDi.
+
+**Forwarding.** `TestInstanceFinder` looks for running launches of the type *Eclipse Application*
+(`org.eclipse.pde.ui.RuntimeWorkbench`), whose process has `-Diagentbridge.uiTools=true` in its
+command line (`IProcess.ATTR_CMDLINE`, set by JDT, with all variables resolved). The command line
+gives the port (`-Diagentbridge.port`) and, if set, the token (`-Diagentbridge.token`); else
+`TokenFile` reads the token file. The names of the system properties and the path of the token file
+are those of `ServerSettings` of the core plug-in, whose package is not exported; `TestInstance`
+and `TokenFile` repeat them. `Forwarding` decides: no test instance, several, no port, no token, or
+the call. `ForwardingClient` sends `tools/call` with the same name and arguments plus
+`forwarded: true` over `Proxy.NO_PROXY`, without `initialize`, because the server keeps no session;
+2 s to connect, 30 s for the answer. `ForwardedResult` returns texts and images of the test
+instance unchanged, after a line, that names it. A server without `uiTools`, that gets a call with
+`forwarded`, rejects it: if a launch with the UI tools had the port of the RDi, in which the
+developer works, that RDi would forward to itself; the server handles one request after the other,
+so the marked call runs after the first one has timed out, and the chain ends there.
+
+**Threads.** `UiThread.read()` passes the code to the UI thread with `asyncExec` and waits at most
+10 s; code, that gets its turn later, is skipped. `syncExec` would block the server, as long as the
+UI thread is busy, e.g. in a long operation.
+
+**Snapshot.** In the UI thread `WorkbenchStateBuilder` and `WidgetModelBuilder` build a model
+without SWT types; `SnapshotWriter` writes the text outside of it. Plain composites are left out,
+their children appear one level up. A password field is a `Text` with `SWT.PASSWORD` or an echo
+character: the sign-on dialog of RSE sets only the echo character. A virtual table shows only its
+visible rows, because other rows would make its content provider load data. When RDi is not in the
+foreground, `Display.getActiveShell()` is `null`; `ShellPicker` then takes the deepest visible
+shell, modal ones first. `WidgetRefs` keeps the references in a `WeakHashMap` and forgets disposed
+widgets at each snapshot. `Mnemonics` removes the mnemonic from texts as SWT shows them: `&&` is
+one `&`. `LocatorBuilder` writes locators in the style of SWTBot for the SWTBot tests, that are
+built from snapshots.
+
+**Native dialogs.** SWT has no API for an open native dialog. `FileDialog`, `MessageBox` and the
+other native dialogs of SWT register themselves in `open()`; `NativeDialogs` reads them with the
+internal method `Display.getModalDialog()` by reflection, so that it needs no access to internal
+packages at compile time and reports no dialog, if the method is missing. `Shell.isEnabled()` does
+not show, that Windows disabled the owner of a native dialog. While a native dialog is open, the UI
+thread still runs the code of `asyncExec`, so a snapshot answers at once.
+
+**Screenshots.** `ShellPainter` lets the controls draw themselves with `Control.print`, so the
+image is right, also when another window covers the test instance, and the test instance never gets
+the focus. `Control.print` on a shell itself returns a white image, so the image of a shell is
+composed of the images of its children, from the bottom to the top (`getChildren()` returns the
+topmost child first); title bar and menu bar are missing. Only the `ImageData` is taken in the UI
+thread; `ImageDataScaler` and `ImageLoader` scale and encode it outside. `ImageScaler` averages the
+area, that each new pixel covers, because picking the nearest pixel (`ImageData.scaledTo`) drops
+lines of characters and turns text unreadable.
+
+**Working on the UI plug-in.** The RDi, in which you work, offers the tools of its installed UI
+plug-in. New tools or arguments of the workspace reach an agent only directly on the port of the
+test instance, e.g. with `claude -p --mcp-config`, until they are installed in that RDi and a new
+session of Claude Code starts.
+
 ### Tools
 
 `IAgentBridgePlugin.createTools()` collects the tools, whenever the server starts: first the tools
@@ -251,6 +330,15 @@ instance and test projects with green, red and hanging tests. `ProjectDirectorie
 search of `import_projects` in temporary directories and `ImportReportTest` its result; the import
 itself is tested by hand with a test instance. `McpToolResultTest` checks the JSON of results with
 images.
+
+The tests in `eclipse/iAgentBridge UI JUnit` use no Eclipse types either. `SnapshotWriterTest`,
+`LocatorBuilderTest` and `MnemonicsTest` check the text of a snapshot from a model,
+`CommandLineTest` the command line of a test instance, `ForwardedResultTest` and `ForwardingTest`
+the result and the decisions of the forwarding, `ForwardingClientTest` the forwarding against a
+real `McpHttpServer` (image, wrong token, closed port, timeout and a call to itself),
+`UiArgumentsTest`, `ScreenshotFilesTest` and `ImageScalerTest` the arguments, the files and the
+scaling of the screenshots. The widgets themselves, the forwarding from the RDi, in which you work,
+and the screenshots are tested by hand with a test instance.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the

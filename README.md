@@ -21,6 +21,10 @@ RDi as tools - with the settings, that apply in RDi.
   *File > Import > Existing Projects into Workspace*, so that the agent can build and test them.
 * **Workspace information**: tells the agent, which RDi, workspace and Java projects it talks to
   and which clean-up profile applies to each project.
+* **User interface of a test instance** (optional feature *iAgentBridge UI*, for developers of RDi
+  plug-ins): the agent reads the user interface of a test instance of RDi, that was started from
+  the workspace - the widget tree as text and screenshots - e.g. to check a new dialog. The RDi, in
+  which the developer works, forwards the calls to the test instance and is never touched.
 * **Tools of other plug-ins**: other RDi plug-ins can add tools to the server, e.g. `format_rpg` of
   iRPGFormatter, which formats RPG sources with the settings of RDi, and `ifs_projects_compile` and
   `ifs_projects_check_syntax` of IFS Projects, which compile the files of local IFS projects on the
@@ -40,7 +44,7 @@ RDi as tools - with the settings, that apply in RDi.
 
 1. Choose *Help > Install New Software...* in RDi.
 2. Add the update site `https://tools-400.github.io/iagentbridge/update-site/eclipse/rdi8.0/` and
-   select *iAgentBridge*.
+   select *iAgentBridge*; developers of RDi plug-ins also *iAgentBridge UI*.
 3. Finish the wizard and restart RDi. The *Error Log* view shows the address of the server.
 
 Home page: https://tools-400.github.io/iagentbridge/.

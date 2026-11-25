@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: iAgentBridge UI JUnit
+Bundle-SymbolicName: de.tools400.iagentbridge.ui.junit
+Bundle-Version: 1.0.0.qualifier
+Bundle-Vendor: Tools/400
+Fragment-Host: de.tools400.iagentbridge.ui.plugin
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
+Require-Bundle: org.junit,
+ de.tools400.iagentbridge.core.plugin
+Import-Package: com.google.gson;version="[2.2.0,3.0.0)"

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+   <!--
+     ==========================================================================
+       Tools 'ui_snapshot' and 'ui_screenshot' of the MCP server of
+       iAgentBridge: executed in a test instance, forwarded to it otherwise
+     ==========================================================================
+   -->
+
+   <extension point="de.tools400.iagentbridge.core.plugin.tools">
+      <tool
+            id="de.tools400.iagentbridge.ui.snapshot"
+            class="de.tools400.iagentbridge.ui.tools.UiSnapshotTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.screenshot"
+            class="de.tools400.iagentbridge.ui.tools.UiScreenshotTool">
+      </tool>
+   </extension>
+
+</plugin>

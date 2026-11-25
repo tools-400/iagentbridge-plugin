@@ -17,7 +17,9 @@ the plug-in is for, its requirements and how to install it, see [README.md](READ
 
 4. Start a new Claude Code session. The tools are named `mcp__rdi096__clean_up`,
    `mcp__rdi096__get_problems`, `mcp__rdi096__import_projects`, `mcp__rdi096__run_tests` and
-   `mcp__rdi096__workspace_info`. Check the connection with `claude mcp get rdi096`.
+   `mcp__rdi096__workspace_info`, with the optional feature *iAgentBridge UI* also
+   `mcp__rdi096__ui_snapshot` and `mcp__rdi096__ui_screenshot`. Check the connection with
+   `claude mcp get rdi096`.
 
 The name is the name of the entry in the configuration of Claude Code (`~/.claude.json` with
 `--scope user`); the plug-in only suggests it. Remove the entry with
@@ -251,6 +253,78 @@ workspace location, server URL and the open Java projects with their locations a
 profile, e.g. `iSphere Clean Up Profile (Helios) (project settings)`. Use it to check, which RDi
 and workspace an agent talks to. It has no arguments.
 
+### UI tools: ui_snapshot and ui_screenshot
+
+For developers of RDi plug-ins: the optional feature *iAgentBridge UI* lets an agent read the user
+interface of a **test instance** of RDi, that you started from the workspace, e.g. to check a new
+dialog. Install the feature into the RDi, in which you work, and start the test instance with a
+launch configuration, that has the VM argument `-Diagentbridge.uiTools=true`, see
+[Test instances](#test-instances).
+
+The tools never read or change the user interface of the RDi, in which you work. Its server offers
+them, but forwards every call to the running test instance; the test instance reads its user
+interface and answers. So Claude Code needs only the entry of your RDi, e.g. `rdi096`, and a
+restart of the test instance needs no reconnect. The first line of the answer names the test
+instance.
+
+**ui_snapshot** returns the user interface as indented text: first the workbench (active shell,
+focus, perspective, views, editors with *dirty*, shells, an open native dialog), then the widget
+tree of a shell, one line per widget: type, text, reference like `[w17]`, label, value, state
+(`disabled`, `selected`, `focus`, `default`, ...), a locator in the style of SWTBot, e.g.
+`textWithLabel("Port:")`, and the tooltip. Tables show their columns and the first 50 rows (a
+virtual table only its visible rows), lists their first 50 items, trees their expanded items,
+progress bars, scales and sliders their value and range, e.g. `value="40" range=0..100`, the LPEX
+editor its name, number of lines and cursor. A reference stays valid, as long as the widget lives.
+
+```
+display: activeShell="Preferences" focus=tree [w2]
+workbench: perspective "Resource" (org.eclipse.ui.resourcePerspective), activePart "Project Explorer"
+views: "Project Explorer" (org.eclipse.ui.navigator.ProjectExplorer), "Outline" (org.eclipse.ui.views.ContentOutline)
+editors: none
+shells: "runtime-iagentbridge-en - Resource - IBM Rational Developer for i" [w9], "Preferences" [w1] modal
+shell "Preferences" [w1] modal active
+  tree [w2] focus
+    item "General" [w3] collapsed
+    item "iAgentBridge" [w4] selected
+  group "Connection" [w10]
+    text [w11] label="Port:" value="39196" locator=textWithLabel("Port:")
+  button "Apply and Close" [w20] default locator=button("Apply and Close")
+(7 nodes)
+```
+
+| Argument | Type | Default | Content |
+|---|---|---|---|
+| `shell` | string | the active shell | reference or title of a shell, or `all` for all visible shells |
+| `ref` | string | – | reference of a widget, e.g. `w17`: only its sub tree |
+| `maxNodes` | integer | 400 | number of widgets, after which the snapshot is cut |
+| `toolItems` | boolean | false | also show the tool bars and their items |
+
+**ui_screenshot** returns a PNG image of a shell or a control and saves it in
+`%TEMP%\iagentbridge\screenshots\` (the folder keeps the newest 50 images). The controls draw
+themselves, so the image is right, also when other windows cover the test instance; the test
+instance is not brought to the front. The image of a shell has no title bar and no menu bar.
+
+| Argument | Type | Default | Content |
+|---|---|---|---|
+| `shell` | string | the active shell | reference or title of a shell |
+| `ref` | string | – | reference of a control instead of a shell; not together with `shell` |
+| `maxWidth` | integer | 1280 | wider images are scaled down to this width |
+
+Limits: password fields have no value, also those, that only show an echo character like the
+sign-on dialog of RSE. Native dialogs of Windows, e.g. *Open File*, are no widgets: the snapshot
+only reports `native dialog open`. When RDi is not in the foreground, the operating system shows
+no active shell; then the deepest visible shell counts as active, modal shells first.
+
+| Error | Meaning |
+|---|---|
+| `No test instance with the UI tools is running. ...` | start a test instance; the message names the launch configurations with `-Diagentbridge.uiTools=true` |
+| `Several test instances with the UI tools are running: ...` | stop all but one |
+| `... does not accept connections yet - still starting?` | the test instance is still starting, or its server is not running |
+| `... did not answer within 30 s - stopped in the debugger? ...` | the test instance stops at a breakpoint, or the port of its launch configuration is the port of the RDi, in which you work |
+| `... rejected the token (HTTP 401) ...` | the launch configuration sets another token with `-Diagentbridge.token` |
+| `UI thread busy for 10 s - ...` | a long operation or a native dialog blocks the user interface of the test instance |
+| `Ref w17 is unknown or outdated, take a new snapshot.` | the widget does not exist any more |
+
 ### Tools of other plug-ins
 
 Other RDi plug-ins can add tools to the server. Install them like any other plug-in and restart
@@ -305,6 +379,7 @@ arguments of a launch configuration:
 | `iagentbridge.serverEnabled` | `true` or `false`: whether RDi starts the server, instead of the preference *Start the server when RDi starts*; the preference page shows it and disables the check box. *Start* starts the server all the same |
 | `iagentbridge.token` | token, that the client must send as `Authorization: Bearer <token>`, instead of the token file |
 | `iagentbridge.serverName` | name of the server in the command for Claude Code on the preference page, instead of the name derived from the version of RDi, e.g. `rdi096test` in a test instance; letters, digits, `_` and `-` |
+| `iagentbridge.uiTools` | `true`: this RDi is a test instance, that executes the UI tools of the feature *iAgentBridge UI*; without it, they are forwarded to such a test instance |
 
 ## Test instances
 
@@ -315,9 +390,20 @@ set `-Diagentbridge.port=...`, `-Diagentbridge.serverEnabled=false` or remove th
 a *JUnit Plug-in Test*, that `run_tests` starts. Otherwise the instance, that starts first, gets
 the port, and the other one shows the error on the preference page and in the *Error Log* view.
 
+The launch configurations of iAgentBridge also set `-Diagentbridge.uiTools=true`, so that the test
+instance executes the [UI tools](#ui-tools-ui_snapshot-and-ui_screenshot), and
+`-Diagentbridge.serverName=rdi096test` (`rdi098test`, `rdi099test`), so that its preference page
+does not suggest the name of the RDi, in which you work. The test instance needs no entry in Claude
+Code. The RDi, in which you work, finds it among its running launches of the type *Eclipse
+Application*: by `-Diagentbridge.uiTools=true` in the command line of the process, which also
+gives the port and, if set, the token. Only one such test instance may run at a time.
+
 ## Security
 
 * The server listens on the loopback address `127.0.0.1` only. Other computers cannot reach it.
 * Every request must carry the token. Keep the token file private.
 * Requests of web pages of other hosts are rejected (`Origin` header), so that a web page in a
   browser cannot call the server.
+* The UI tools read only a test instance with `-Diagentbridge.uiTools=true`, never the RDi, in
+  which you work, and return password fields without value. Give the test instance a workspace of
+  its own and connections to test systems only.

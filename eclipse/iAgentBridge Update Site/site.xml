@@ -3,9 +3,17 @@
    <feature url="features/de.tools400.iagentbridge.core.feature_1.1.0.b001.jar" id="de.tools400.iagentbridge.core.feature" version="1.1.0.b001">
       <category name="de.tools400.iagentbridge"/>
    </feature>
+   <feature url="features/de.tools400.iagentbridge.ui.feature_1.1.0.b001.jar" id="de.tools400.iagentbridge.ui.feature" version="1.1.0.b001">
+      <category name="de.tools400.iagentbridge.ui"/>
+   </feature>
    <category-def name="de.tools400.iagentbridge" label="iAgentBridge">
       <description>
          iAgentBridge for RDi 9.6, 9.8 and 9.9.
+      </description>
+   </category-def>
+   <category-def name="de.tools400.iagentbridge.ui" label="iAgentBridge UI (for plug-in developers)">
+      <description>
+         Optional, for developers of RDi plug-ins: lets AI agents read the user interface of a test instance of RDi with the tools ui_snapshot and ui_screenshot. Requires iAgentBridge of the same or a newer version.
       </description>
    </category-def>
 </site>
