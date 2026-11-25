@@ -38,6 +38,7 @@ public class Messages extends NLS {
     public static String Title_New_token;
     public static String Question_New_token;
     public static String Error_New_token_A;
+    public static String Error_Invalid_server_name_A_B;
     public static String Label_Command_for_Claude_Code_colon;
     public static String Tooltip_Command_for_Claude_Code;
     public static String Label_Copy;

@@ -291,7 +291,8 @@ server: it only tells, whether RDi starts it. The group *Connection* shows:
   random token at the first start; all RDi instances of the user share it. *New Token* replaces
   the token; register the clients again afterwards.
 * **Command for Claude Code**: the command of the quick start, with the port of this RDi. *Copy*
-  copies it to the clipboard.
+  copies it to the clipboard. If the system property `iagentbridge.serverName` has an invalid
+  value, the field shows the error instead of a command.
 
 ## System properties
 
@@ -303,6 +304,7 @@ arguments of a launch configuration:
 | `iagentbridge.port` | port of the server; the preference page shows it and disables the field *Port* |
 | `iagentbridge.serverEnabled` | `true` or `false`: whether RDi starts the server, instead of the preference *Start the server when RDi starts*; the preference page shows it and disables the check box. *Start* starts the server all the same |
 | `iagentbridge.token` | token, that the client must send as `Authorization: Bearer <token>`, instead of the token file |
+| `iagentbridge.serverName` | name of the server in the command for Claude Code on the preference page, instead of the name derived from the version of RDi, e.g. `rdi096test` in a test instance; letters, digits, `_` and `-` |
 
 ## Test instances
 

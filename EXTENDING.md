@@ -20,7 +20,7 @@ The API is in the exported package `de.tools400.iagentbridge.mcp`:
 | Class | Purpose |
 |---|---|
 | `IMcpTool` | the tool: name, description, JSON schema of the arguments and `execute()` |
-| `McpToolResult` | the result: `success(text)` or `error(text)` |
+| `McpToolResult` | the result: `success(text)` or `error(text)`, since 1.1.0 with images: `withImage(data, mimeType)`, see *Images* in [Rules](#4-rules) |
 | `ToolArguments` | reads the arguments: `getStringList()`, since 1.1.0 also `getString()` (a string, that must not be empty) and the optional arguments `getOptionalStringList()`, `getChoice()` (one of fixed strings) and `getInt()`, and `toLocalPath()`, which turns a path of Git Bash like `/c/dir/file` into `C:/dir/file` |
 | `ToolJobs` | since 1.1.0: `runAndWait()` schedules a job, which the view *Progress* shows and in which the user can cancel it, and waits for its end, see *Jobs* in [Rules](#4-rules) |
 
@@ -135,6 +135,9 @@ not for a user. The agent sees the text of the result; JSON is easy for it to re
   tool error. Any other exception is returned as a tool error with the class names and messages of
   its causes and is written to the error log of RDi with its stack trace.
 * **A failed tool** returns `McpToolResult.error(text)`, so that the agent notices it.
+* **Images**: `McpToolResult.success(text).withImage(png, "image/png")` returns an image, e.g. a
+  screenshot, after the text; the client shows it to the agent. The method returns a new result and
+  keeps a copy of the bytes. Requires `bundle-version="[1.1.0,2.0.0)"`.
 * **Threads**: the server handles one request after the other in a thread of its own, never in the
   UI thread. A tool may block until its work is done, e.g. join a job. Work with the UI, e.g. to
   check the editors, in `Display.syncExec()`.

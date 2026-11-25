@@ -249,7 +249,8 @@ with a test instance. `TestRunReportTest` checks the result of `run_tests`: coun
 filter of the stack traces and JSON; the launch and the events of JDT are tested by hand with a test
 instance and test projects with green, red and hanging tests. `ProjectDirectoriesTest` checks the
 search of `import_projects` in temporary directories and `ImportReportTest` its result; the import
-itself is tested by hand with a test instance.
+itself is tested by hand with a test instance. `McpToolResultTest` checks the JSON of results with
+images.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the

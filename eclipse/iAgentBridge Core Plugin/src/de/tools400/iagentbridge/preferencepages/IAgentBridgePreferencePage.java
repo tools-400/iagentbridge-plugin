@@ -54,6 +54,7 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
     private Text tokenText;
     private Button newTokenButton;
     private Text commandText;
+    private Button copyButton;
 
     public IAgentBridgePreferencePage() {
         super(GRID);
@@ -142,7 +143,7 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
         commandData.widthHint = COMMAND_WIDTH_HINT;
         commandText.setLayoutData(commandData);
         commandText.setToolTipText(Messages.Tooltip_Command_for_Claude_Code);
-        Button copyButton = new Button(connection, SWT.PUSH);
+        copyButton = new Button(connection, SWT.PUSH);
         copyButton.setText(Messages.Label_Copy);
         copyButton.setToolTipText(Messages.Tooltip_Copy);
         copyButton.setLayoutData(new GridData(SWT.FILL, SWT.TOP, false, false));
@@ -251,7 +252,22 @@ public class IAgentBridgePreferencePage extends FieldEditorPreferencePage implem
             url = "http://127.0.0.1:" + getPortForCommand(settings) + McpHttpServer.PATH; //$NON-NLS-1$
         }
 
-        commandText.setText(ClientCommands.createClaudeCodeCommand(plugin.suggestServerName(), url, tokenFile));
+        String serverName;
+        try {
+            serverName = plugin.suggestServerName();
+        } catch (IllegalArgumentException e) {
+            // Never fall back to the name of the RDi, that started it.
+            serverName = null;
+        }
+
+        if (serverName == null) {
+            commandText.setText(NLS.bind(Messages.Error_Invalid_server_name_A_B, ServerSettings.PROPERTY_SERVER_NAME,
+                System.getProperty(ServerSettings.PROPERTY_SERVER_NAME).trim()));
+            copyButton.setEnabled(false);
+        } else {
+            commandText.setText(ClientCommands.createClaudeCodeCommand(serverName, url, tokenFile));
+            copyButton.setEnabled(true);
+        }
         statusLabel.getParent().layout(true);
     }
 

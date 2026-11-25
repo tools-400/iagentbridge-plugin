@@ -16,10 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.security.SecureRandom;
 import java.util.Properties;
+import java.util.regex.Pattern;
 
 /**
- * Settings of the MCP server: port, token and whether it is started, when RDi
- * starts.
+ * Settings of the MCP server: port, token, whether it is started, when RDi
+ * starts, and the name, that the preference page suggests for the MCP client.
  * <p>
  * The port is the one of the preferences, unless the system property
  * 'iagentbridge.port' sets it, e.g. in the VM arguments of a launch
@@ -27,7 +28,10 @@ import java.util.Properties;
  * '.iagentbridge/token' of the home directory of the user, which all RDi
  * instances share, unless the system property 'iagentbridge.token' sets it. The
  * system property 'iagentbridge.serverEnabled' overrides the preference, that
- * tells whether the server is started, when RDi starts.
+ * tells whether the server is started, when RDi starts. The system property
+ * 'iagentbridge.serverName' replaces the suggested name of the server, e.g. in
+ * a test instance, so that its command does not overwrite the registration of
+ * the RDi, that started it.
  * <p>
  * The class has no Eclipse dependencies, so that it can be tested outside of
  * RDi.
@@ -45,6 +49,18 @@ public class ServerSettings {
      * starts, e.g. 'false' in a test instance
      */
     public static final String PROPERTY_SERVER_ENABLED = "iagentbridge.serverEnabled"; //$NON-NLS-1$
+
+    /**
+     * System property with the name of the server, that the preference page
+     * suggests for the MCP client, e.g. 'rdi096test' in a test instance
+     */
+    public static final String PROPERTY_SERVER_NAME = "iagentbridge.serverName"; //$NON-NLS-1$
+
+    /**
+     * Valid name of a server: letters, digits, '_' and '-', so that it fits
+     * into the command of the MCP client
+     */
+    private static final Pattern SERVER_NAME = Pattern.compile("[A-Za-z0-9_-]{1,64}"); //$NON-NLS-1$
 
     /** Default port, if the version of RDi is not known */
     public static final int DEFAULT_PORT = 39096;
@@ -165,6 +181,32 @@ public class ServerSettings {
      */
     public boolean isServerEnabledSetBySystemProperty() {
         return !isEmpty(properties.getProperty(PROPERTY_SERVER_ENABLED));
+    }
+
+    /**
+     * Returns the name of the server, that the preference page suggests for the
+     * MCP client: the one of the system property or else the given one.
+     *
+     * @param aSuggestedName - name derived from the version of RDi, e.g.
+     *        'rdi096'
+     * @return name of the server
+     * @throws IllegalArgumentException if the system property is not a valid
+     *         name; then no name is suggested at all, so that a test instance
+     *         never suggests the name of the RDi, that started it
+     */
+    public String getServerName(String aSuggestedName) {
+
+        String value = properties.getProperty(PROPERTY_SERVER_NAME);
+        if (isEmpty(value)) {
+            return aSuggestedName;
+        }
+
+        String name = value.trim();
+        if (!SERVER_NAME.matcher(name).matches()) {
+            throw new IllegalArgumentException("Invalid value of " + PROPERTY_SERVER_NAME + ": " + name); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+
+        return name;
     }
 
     /**

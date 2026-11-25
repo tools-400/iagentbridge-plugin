@@ -225,18 +225,23 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
 
     /**
      * Suggests the name of the server in an MCP client, e.g. 'rdi096' for RDi
-     * 9.6.
+     * 9.6, or the one of the system property 'iagentbridge.serverName'.
      *
      * @return name of the server
+     * @throws IllegalArgumentException if the system property is not a valid
+     *         name
      */
     public String suggestServerName() {
 
+        String suggestedName;
         Version version = getRdiVersion();
         if (version == null) {
-            return ClientCommands.DEFAULT_SERVER_NAME;
+            suggestedName = ClientCommands.DEFAULT_SERVER_NAME;
+        } else {
+            suggestedName = ClientCommands.suggestServerName(version.getMajor(), version.getMinor());
         }
 
-        return ClientCommands.suggestServerName(version.getMajor(), version.getMinor());
+        return getServerSettings().getServerName(suggestedName);
     }
 
     /**

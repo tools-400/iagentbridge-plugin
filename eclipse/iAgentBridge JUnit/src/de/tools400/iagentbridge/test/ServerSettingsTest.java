@@ -146,6 +146,46 @@ public class ServerSettingsTest {
     }
 
     @Test
+    public void testGetServerName_suggested() {
+
+        ServerSettings settings = new ServerSettings(properties, PREFERENCE_PORT);
+
+        assertEquals("rdi096", settings.getServerName("rdi096"));
+    }
+
+    @Test
+    public void testGetServerName_property() {
+
+        properties.setProperty(ServerSettings.PROPERTY_SERVER_NAME, " rdi096test ");
+
+        assertEquals("rdi096test", new ServerSettings(properties, PREFERENCE_PORT).getServerName("rdi096"));
+    }
+
+    @Test
+    public void testGetServerName_emptyProperty() {
+
+        properties.setProperty(ServerSettings.PROPERTY_SERVER_NAME, " ");
+
+        assertEquals("rdi096", new ServerSettings(properties, PREFERENCE_PORT).getServerName("rdi096"));
+    }
+
+    @Test
+    public void testGetServerName_invalidProperty() {
+
+        String[] invalidNames = { "rdi096 test", "rdi096'test", "rdi096\"test", "rdi096$test",
+            "a1234567890123456789012345678901234567890123456789012345678901234" };
+        for (String name : invalidNames) {
+            properties.setProperty(ServerSettings.PROPERTY_SERVER_NAME, name);
+            try {
+                String serverName = new ServerSettings(properties, PREFERENCE_PORT).getServerName("rdi096");
+                fail("IllegalArgumentException expected for '" + name + "', got '" + serverName + "'");
+            } catch (IllegalArgumentException e) {
+                assertEquals("Invalid value of iagentbridge.serverName: " + name, e.getMessage());
+            }
+        }
+    }
+
+    @Test
     public void testGetToken_property() throws IOException {
 
         properties.setProperty(ServerSettings.PROPERTY_TOKEN, " abc ");
