@@ -4,8 +4,8 @@
 
    <!--
      ==========================================================================
-       Tools 'ui_snapshot' and 'ui_screenshot' of the MCP server of
-       iAgentBridge: executed in a test instance, forwarded to it otherwise
+       UI tools of the MCP server of iAgentBridge: read and operate the user
+       interface of a test instance, forwarded to it from any other RDi
      ==========================================================================
    -->
 
@@ -18,6 +18,57 @@
             id="de.tools400.iagentbridge.ui.screenshot"
             class="de.tools400.iagentbridge.ui.tools.UiScreenshotTool">
       </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.click"
+            class="de.tools400.iagentbridge.ui.tools.UiClickTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.type"
+            class="de.tools400.iagentbridge.ui.tools.UiTypeTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.select"
+            class="de.tools400.iagentbridge.ui.tools.UiSelectTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.check"
+            class="de.tools400.iagentbridge.ui.tools.UiCheckTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.key"
+            class="de.tools400.iagentbridge.ui.tools.UiKeyTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.menu"
+            class="de.tools400.iagentbridge.ui.tools.UiMenuTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.command"
+            class="de.tools400.iagentbridge.ui.tools.UiCommandTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.wait"
+            class="de.tools400.iagentbridge.ui.tools.UiWaitTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.lpex"
+            class="de.tools400.iagentbridge.ui.tools.UiLpexTool">
+      </tool>
+   </extension>
+
+   <!--
+     ==========================================================================
+       Preference page of the UI tools, below the page of iAgentBridge
+     ==========================================================================
+   -->
+
+   <extension point="org.eclipse.ui.preferencePages">
+      <page
+            id="de.tools400.iagentbridge.ui.preferences.UiToolsPreferencePage"
+            category="de.tools400.iagentbridge.preferencepages.IAgentBridgePreferencePage"
+            class="de.tools400.iagentbridge.ui.preferences.UiToolsPreferencePage"
+            name="%PreferencePage_UI_tools">
+      </page>
    </extension>
 
 </plugin>

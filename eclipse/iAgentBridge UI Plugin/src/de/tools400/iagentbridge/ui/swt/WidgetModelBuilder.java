@@ -95,6 +95,23 @@ public final class WidgetModelBuilder {
         return node;
     }
 
+    /**
+     * Describes a single control with its locator, without its content, e.g.
+     * for the journal of an action.
+     *
+     * @param aControl - the control
+     * @return node of the control, without children
+     */
+    public WidgetNode describeOnly(Control aControl) {
+
+        WidgetNode node = describe(aControl);
+        if (node == null) {
+            node = WidgetNode.widget(typeName(aControl), null, WidgetRefs.of(aControl));
+        }
+
+        return node;
+    }
+
     private void addControl(Control aControl, WidgetNode aParent) {
 
         if (!aControl.getVisible()) {
@@ -135,7 +152,8 @@ public final class WidgetModelBuilder {
             for (ToolItem item : ((ToolBar)aControl).getItems()) {
                 if ((item.getStyle() & SWT.SEPARATOR) == 0) {
                     String text = item.getText().isEmpty() ? item.getToolTipText() : item.getText();
-                    WidgetNode toolItem = WidgetNode.widget("toolitem", Mnemonics.remove(text), WidgetRefs.of(item)); //$NON-NLS-1$
+                    WidgetNode toolItem = WidgetNode.widget("toolitem", Mnemonics.remove(text), WidgetRefs.of(item)) //$NON-NLS-1$
+                        .setItemText(WidgetRefs.itemText(item));
                     if (!item.isEnabled()) {
                         toolItem.addFlag("disabled"); //$NON-NLS-1$
                     }
@@ -164,7 +182,7 @@ public final class WidgetModelBuilder {
     private void addTreeItems(TreeItem[] anItems, Set<TreeItem> aSelection, int aColumns, boolean aCheck, WidgetNode aParent) {
 
         for (TreeItem item : anItems) {
-            WidgetNode node = WidgetNode.widget("item", rowText(item, aColumns), WidgetRefs.of(item)); //$NON-NLS-1$
+            WidgetNode node = WidgetNode.widget("item", rowText(item, aColumns), WidgetRefs.of(item)).setItemText(WidgetRefs.itemText(item)); //$NON-NLS-1$
             boolean hasChildren = item.getItemCount() > 0;
             if (hasChildren) {
                 node.addFlag(item.getExpanded() ? "expanded" : "collapsed"); //$NON-NLS-1$ //$NON-NLS-2$
@@ -203,7 +221,7 @@ public final class WidgetModelBuilder {
         boolean check = (aTable.getStyle() & SWT.CHECK) != 0;
         for (int i = first; i < last; i++) {
             TableItem item = aTable.getItem(i);
-            WidgetNode row = WidgetNode.widget("row", rowText(item, columns), WidgetRefs.of(item)); //$NON-NLS-1$
+            WidgetNode row = WidgetNode.widget("row", rowText(item, columns), WidgetRefs.of(item)).setItemText(WidgetRefs.itemText(item)); //$NON-NLS-1$
             if (selection.contains(item)) {
                 row.addFlag(SELECTED);
             }
@@ -273,7 +291,8 @@ public final class WidgetModelBuilder {
     }
 
     private static WidgetNode item(String aType, Item anItem, boolean aSelected) {
-        WidgetNode node = WidgetNode.widget(aType, Mnemonics.remove(anItem.getText()), WidgetRefs.of(anItem));
+        WidgetNode node = WidgetNode.widget(aType, Mnemonics.remove(anItem.getText()), WidgetRefs.of(anItem))
+            .setItemText(WidgetRefs.itemText(anItem));
         if (aSelected) {
             node.addFlag(SELECTED);
         }
@@ -491,7 +510,7 @@ public final class WidgetModelBuilder {
      * an echo character, which e.g. the sign-on dialog of RSE sets without the
      * style.
      */
-    private static boolean isPassword(Control aControl) {
+    static boolean isPassword(Control aControl) {
         if (!(aControl instanceof Text)) {
             return false;
         }

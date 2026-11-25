@@ -22,6 +22,8 @@ import de.tools400.iagentbridge.ui.forwarding.Forwarding;
 import de.tools400.iagentbridge.ui.forwarding.ForwardingClient;
 import de.tools400.iagentbridge.ui.forwarding.TestInstance;
 import de.tools400.iagentbridge.ui.forwarding.TestInstanceFinder;
+import de.tools400.iagentbridge.ui.model.PendingFailures;
+import de.tools400.iagentbridge.ui.preferences.UiPreferences;
 import de.tools400.iagentbridge.ui.swt.UiThreadBusyException;
 
 /**
@@ -34,6 +36,8 @@ public abstract class AbstractUiTool implements IMcpTool {
 
     /** Time, that the UI thread has to run a request */
     protected static final int UI_TIMEOUT_SECONDS = 10;
+
+    private static final PendingFailures PENDING_FAILURES = new PendingFailures();
 
     /** End of the description of every UI tool */
     protected static final String DESCRIPTION_SUFFIX = " Works on a test instance of RDi, that the developer started from the workspace " //$NON-NLS-1$
@@ -59,7 +63,23 @@ public abstract class AbstractUiTool implements IMcpTool {
         List<TestInstance> running = TestInstanceFinder.findRunning();
         List<String> configurations = running.isEmpty() ? TestInstanceFinder.findConfigurations() : Collections.<String> emptyList();
 
-        return new Forwarding(new ForwardingClient(), System.getProperties()).forward(running, configurations, getName(), anArguments);
+        ForwardingClient client = new ForwardingClient(ForwardingClient.CONNECT_TIMEOUT_MILLIS, getForwardingTimeoutMillis(anArguments));
+        JsonObject arguments = UiArguments.withKeepDialogsBehind(anArguments, UiPreferences.isKeepDialogsBehind());
+        return new Forwarding(client, System.getProperties()).forward(running, configurations, getName(), arguments);
+    }
+
+    /**
+     * Returns the time, that the RDi, that forwards a call, waits for the
+     * answer of the test instance. A tool, whose time in the test instance
+     * depends on its arguments, checks them here, before the call is forwarded.
+     *
+     * @param anArguments - arguments of the tool
+     * @return milliseconds
+     * @throws IllegalArgumentException if an argument, that the time depends
+     *         on, is wrong
+     */
+    protected int getForwardingTimeoutMillis(JsonObject anArguments) {
+        return ForwardingClient.READ_TIMEOUT_MILLIS;
     }
 
     /**
@@ -84,6 +104,27 @@ public abstract class AbstractUiTool implements IMcpTool {
 
     protected static Display getDisplay() {
         return PlatformUI.getWorkbench().getDisplay();
+    }
+
+    /**
+     * Returns the failures of earlier actions, that ended after their tool had
+     * returned, and forgets them. Every UI tool puts them in front of its
+     * result.
+     *
+     * @return one line per failure, or an empty string
+     */
+    protected static String takePendingFailures() {
+        return PENDING_FAILURES.take();
+    }
+
+    /**
+     * Returns the failures of earlier actions, that ended after their tool had
+     * returned.
+     *
+     * @return the failures
+     */
+    protected static PendingFailures getPendingFailures() {
+        return PENDING_FAILURES;
     }
 
     /**

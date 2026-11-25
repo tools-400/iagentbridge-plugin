@@ -96,7 +96,7 @@ public class UiScreenshotTool extends AbstractUiTool {
 
         File file = ScreenshotFiles.save(ScreenshotFiles.getDirectory(), bytes, new Date());
 
-        String text = "Screenshot of " + capture.description + ", " + data.width + "x" + data.height + " pixels" //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+        String text = takePendingFailures() + "Screenshot of " + capture.description + ", " + data.width + "x" + data.height + " pixels" //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
             + (capture.data.width > maxWidth ? " (scaled down from " + capture.data.width + "x" + capture.data.height + ")" : "") //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
             + ", saved in " + file.getPath(); //$NON-NLS-1$
 

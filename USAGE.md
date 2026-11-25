@@ -17,9 +17,9 @@ the plug-in is for, its requirements and how to install it, see [README.md](READ
 
 4. Start a new Claude Code session. The tools are named `mcp__rdi096__clean_up`,
    `mcp__rdi096__get_problems`, `mcp__rdi096__import_projects`, `mcp__rdi096__run_tests` and
-   `mcp__rdi096__workspace_info`, with the optional feature *iAgentBridge UI* also
-   `mcp__rdi096__ui_snapshot` and `mcp__rdi096__ui_screenshot`. Check the connection with
-   `claude mcp get rdi096`.
+   `mcp__rdi096__workspace_info`, with the optional feature *iAgentBridge UI* also the
+   [UI tools](#ui-tools), e.g. `mcp__rdi096__ui_snapshot` and `mcp__rdi096__ui_click`. Check the
+   connection with `claude mcp get rdi096`.
 
 The name is the name of the entry in the configuration of Claude Code (`~/.claude.json` with
 `--scope user`); the plug-in only suggests it. Remove the entry with
@@ -253,13 +253,14 @@ workspace location, server URL and the open Java projects with their locations a
 profile, e.g. `iSphere Clean Up Profile (Helios) (project settings)`. Use it to check, which RDi
 and workspace an agent talks to. It has no arguments.
 
-### UI tools: ui_snapshot and ui_screenshot
+### UI tools
 
-For developers of RDi plug-ins: the optional feature *iAgentBridge UI* lets an agent read the user
-interface of a **test instance** of RDi, that you started from the workspace, e.g. to check a new
-dialog. Install the feature into the RDi, in which you work, and start the test instance with a
-launch configuration, that has the VM argument `-Diagentbridge.uiTools=true`, see
-[Test instances](#test-instances).
+For developers of RDi plug-ins: the optional feature *iAgentBridge UI* lets an agent read and
+operate the user interface of a **test instance** of RDi, that you started from the workspace, e.g.
+to check a new dialog: open it, fill in its fields, press its buttons and look at the result.
+Install the feature into the RDi, in which you work, and start the test instance with a launch
+configuration, that has the VM argument `-Diagentbridge.uiTools=true`, see [Test
+instances](#test-instances).
 
 The tools never read or change the user interface of the RDi, in which you work. Its server offers
 them, but forwards every call to the running test instance; the test instance reads its user
@@ -310,9 +311,40 @@ instance is not brought to the front. The image of a shell has no title bar and 
 | `ref` | string | – | reference of a control instead of a shell; not together with `shell` |
 | `maxWidth` | integer | 1280 | wider images are scaled down to this width |
 
+**Actions** operate the test instance like a user. They send the events of the mouse and the
+keyboard to the widgets in the order, in which SWTBot sends them, without the mouse and the keyboard
+of the operating system, so you can go on working, while an agent operates the test instance. Before
+an action, the tool checks, that the widget is visible and enabled, that no dialog blocks its shell,
+and that a row or a tree item still shows the text of the last snapshot. An action on a widget of a
+view or an editor activates it first, like a click into it, so that e.g. the items of a context menu
+work with its selection. Afterwards it returns the snapshot of the active shell; `snapshot: false`
+turns it off. A dialog, that an action opens, may come on top of your windows, e.g. when the test
+instance runs in the debugger; it is put behind all other windows then, so that it does not cover
+your work, and flickers briefly. The UI tools read it all the same. The page *iAgentBridge > UI
+tools* of the preferences lets it lie on top instead, see [Preferences](#preferences).
+
+| Tool | Arguments | Content |
+|---|---|---|
+| `ui_click` | `ref`, `double` (false) | clicks a push button, a checkbox, radio or toggle button, a link (its first hyperlink), a tab, a tool item, a row of a table or an item of a tree; `double: true` double clicks a row or an item, e.g. to open a file |
+| `ui_type` | `ref`, `text`, `clear` (true), `submit` (false) | types into a text field, an editable combo, a StyledText or a spinner (an integer); `clear: false` inserts at the cursor (text fields and StyledText only); `submit: true` sends DefaultSelection to the field, e.g. for a filter field. Afterwards the field gets KeyUp and FocusOut, so that a preference page checks the value like after typing |
+| `ui_select` | `ref`, `values` | selects entries of a combo or a list, rows of a table by the text of their first column, or items of a tree by paths like `General > Editors`: the levels of a path are expanded, and the tool waits for the next level, which e.g. *Remote Systems* creates later. A virtual table is searched in its visible rows only |
+| `ui_check` | `ref`, `checked` | checks or unchecks a checkbox, a toggle button, a radio button (only `true`) or a row or tree item with a check box; nothing is done, if the state is right already |
+| `ui_menu` | `path`, `ref` | selects an item of the menu bar of the active shell, e.g. `Window > Preferences...`, or with `ref` of the context menu of a widget, a row or a tree item. Mnemonics, shortcuts and `...` at the end do not matter; the texts depend on the language of the test instance. A wrong path returns the items of the menu |
+| `ui_key` | `keys`, `ref` | without `ref` ESC, which closes the active dialog, or ENTER, which clicks its default button; with `ref` keys like `Ctrl+S`, `F5` or `Shift+Tab` to that widget. They work in widgets, that draw themselves, like the LPEX editor, not in native text fields (use `ui_type`), and they never trigger shortcuts of the workbench (use `ui_command`, e.g. `org.eclipse.ui.edit.delete` for DELETE in the LPEX editor) |
+| `ui_command` | `id`, `parameters` | executes an Eclipse command, e.g. `org.eclipse.ui.window.preferences`, independent of the language |
+| `ui_wait` | one of `shell`, `text`, `gone`, `jobsIdle`; `timeoutSeconds` (10, at most 60) | waits for a shell with a title, a text in the active shell (searched like the snapshot shows it), the end of a shell or a widget (an unknown reference is an error), or the end of all jobs, and returns the snapshot. While it waits, the server of the RDi, in which you work, answers no other call |
+| `ui_lpex` | `ref`, `from`, `to`, `line`, `column`, `text` | reads lines of the LPEX editor with their numbers, the cursor and the changes, or sets the cursor and inserts text at it; the text is inserted also in replace mode, not into a read-only document. Keys like ENTER with `ui_key`; DELETE is no key of LPEX in RDi, use `ui_command` with `org.eclipse.ui.edit.delete` |
+
+When an action opens a modal dialog, it returns only, when the dialog is closed. The tool then
+answers `The action has not returned yet - a dialog is open.` with the snapshot of the dialog; if
+the action fails later, the next UI tool reports it in its first line. Commands, that depend on the
+active part, e.g. *Save*, may be disabled, while the test instance is in the background: save in
+the LPEX editor with `ui_key` and `Ctrl+S`.
+
 Limits: password fields have no value, also those, that only show an echo character like the
-sign-on dialog of RSE. Native dialogs of Windows, e.g. *Open File*, are no widgets: the snapshot
-only reports `native dialog open`. When RDi is not in the foreground, the operating system shows
+sign-on dialog of RSE, and the actions never type into them. Native dialogs of Windows, e.g. *Open
+File*, are no widgets: the snapshot only reports `native dialog open`, and the actions are rejected,
+until you close the dialog. When RDi is not in the foreground, the operating system shows
 no active shell; then the deepest visible shell counts as active, modal shells first.
 
 | Error | Meaning |
@@ -324,6 +356,15 @@ no active shell; then the deepest visible shell counts as active, modal shells f
 | `... rejected the token (HTTP 401) ...` | the launch configuration sets another token with `-Diagentbridge.token` |
 | `UI thread busy for 10 s - ...` | a long operation or a native dialog blocks the user interface of the test instance |
 | `Ref w17 is unknown or outdated, take a new snapshot.` | the widget does not exist any more |
+| `Ref w17 now shows "..." instead of "..." - its viewer was refreshed. ...` | the viewer reuses its rows or items after a refresh; take a new snapshot |
+| `The shell "..." is blocked by the modal dialog "..." ...` | operate or close the dialog first |
+| `The native dialog "..." is open. ...` | close the native dialog in the test instance by hand |
+| `... is a password field. ...` | enter passwords in the test instance yourself |
+| `Not executed - UI thread busy for 20 s. ...` | the action did not run and will not run; repeat it later |
+| `UI thread busy for 20 s - the action is still running. ...` | the action runs; take a snapshot later instead of repeating it |
+| `The earlier action ... failed: ...` | an action, that had opened a dialog, failed after the dialog was closed |
+| `A listener of the action failed: ...` | code of the test instance threw an exception during the action |
+| `The command '...' is not enabled in the current state of the workbench. ...` | the command has no enabled handler now, see above |
 
 ### Tools of other plug-ins
 
@@ -368,6 +409,16 @@ server: it only tells, whether RDi starts it. The group *Connection* shows:
   copies it to the clipboard. If the system property `iagentbridge.serverName` has an invalid
   value, the field shows the error instead of a command.
 
+With the optional feature *iAgentBridge UI*, the page *iAgentBridge > UI tools* sets, where the
+dialogs, that an action of the [UI tools](#ui-tools) opens in the test instance, lie:
+
+| Preference | Default | Content |
+|---|---|---|
+| *Dialogs, that an action opens in the test instance* | *In the background* | *In the background*: they are put behind all other windows and flicker briefly, if they came on top. *In the foreground*: they stay, where Windows puts them, e.g. on top of the other windows, when the test instance runs in the debugger |
+
+Set it in the RDi, in which you work: it passes the setting to the test instance with every call of
+a UI tool. In the test instance it applies only to calls on its own port.
+
 ## System properties
 
 System properties override the preferences, e.g. in `eclipse.ini` after `-vmargs` or in the VM
@@ -391,7 +442,7 @@ a *JUnit Plug-in Test*, that `run_tests` starts. Otherwise the instance, that st
 the port, and the other one shows the error on the preference page and in the *Error Log* view.
 
 The launch configurations of iAgentBridge also set `-Diagentbridge.uiTools=true`, so that the test
-instance executes the [UI tools](#ui-tools-ui_snapshot-and-ui_screenshot), and
+instance executes the [UI tools](#ui-tools), and
 `-Diagentbridge.serverName=rdi096test` (`rdi098test`, `rdi099test`), so that its preference page
 does not suggest the name of the RDi, in which you work. The test instance needs no entry in Claude
 Code. The RDi, in which you work, finds it among its running launches of the type *Eclipse
@@ -404,6 +455,8 @@ gives the port and, if set, the token. Only one such test instance may run at a 
 * Every request must carry the token. Keep the token file private.
 * Requests of web pages of other hosts are rejected (`Origin` header), so that a web page in a
   browser cannot call the server.
-* The UI tools read only a test instance with `-Diagentbridge.uiTools=true`, never the RDi, in
-  which you work, and return password fields without value. Give the test instance a workspace of
-  its own and connections to test systems only.
+* The UI tools read and operate only a test instance with `-Diagentbridge.uiTools=true`, never the
+  RDi, in which you work. They return password fields without value and never type into them;
+  sign on to the IBM i in the test instance yourself. A click in the test instance can run commands
+  on the IBM i like a click of yours: give the test instance a workspace of its own and connections
+  to test systems and test libraries only.

@@ -8,6 +8,7 @@
 
 package de.tools400.iagentbridge.ui.model;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +32,7 @@ public final class SnapshotWriter {
     private int nodes;
     private int hiddenToolBars;
     private boolean cut;
+    private Map<String, String> shownItems = new HashMap<String, String>();
 
     /**
      * Creates the writer.
@@ -56,6 +58,7 @@ public final class SnapshotWriter {
         nodes = 0;
         hiddenToolBars = 0;
         cut = false;
+        shownItems = new HashMap<String, String>();
 
         writeState(aState);
         for (WidgetNode root : aRoots) {
@@ -156,6 +159,9 @@ public final class SnapshotWriter {
         }
         if (aNode.getRef() != null) {
             out.append(" [").append(aNode.getRef()).append(']'); //$NON-NLS-1$
+            if (aNode.getItemText() != null) {
+                shownItems.put(aNode.getRef(), aNode.getItemText());
+            }
         }
         for (Map.Entry<String, WidgetNode.Value> value : aNode.getValues().entrySet()) {
             String text = value.getValue().getText();
@@ -175,6 +181,16 @@ public final class SnapshotWriter {
         for (WidgetNode child : aNode.getChildren()) {
             writeNode(child, anIndent + 1);
         }
+    }
+
+    /**
+     * Returns the items, that the last write wrote, with the texts, that an
+     * action checks.
+     *
+     * @return references and texts of the items
+     */
+    public Map<String, String> getShownItems() {
+        return shownItems;
     }
 
     private StringBuilder indent(int anIndent) {

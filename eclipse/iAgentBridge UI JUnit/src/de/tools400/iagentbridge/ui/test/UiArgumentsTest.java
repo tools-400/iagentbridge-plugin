@@ -54,6 +54,29 @@ public class UiArgumentsTest {
         }
     }
 
+    /**
+     * The forwarding RDi adds its preference, unless the call has it.
+     */
+    @Test
+    public void testWithKeepDialogsBehind() {
+        JsonObject arguments = parse("{\"ref\":\"w17\"}");
+
+        JsonObject forwarded = UiArguments.withKeepDialogsBehind(arguments, false);
+        assertEquals("{\"ref\":\"w17\",\"keepDialogsBehind\":false}", forwarded.toString());
+        assertFalse("the arguments of the caller stay unchanged", arguments.has("keepDialogsBehind"));
+
+        JsonObject given = parse("{\"ref\":\"w17\",\"keepDialogsBehind\":true}");
+        assertEquals("{\"ref\":\"w17\",\"keepDialogsBehind\":true}", UiArguments.withKeepDialogsBehind(given, false).toString());
+    }
+
+    @Test
+    public void testForJournal() {
+        JsonObject arguments = parse("{\"ref\":\"w17\",\"text\":\"39196\",\"snapshot\":false,\"forwarded\":true,\"keepDialogsBehind\":true}");
+
+        assertEquals("{\"ref\":\"w17\",\"text\":\"39196\"}", UiArguments.forJournal(arguments));
+        assertTrue("the arguments stay unchanged", arguments.has("forwarded"));
+    }
+
     @Test
     public void testCheckShellOrRef() {
         UiArguments.checkShellOrRef("Preferences", null);
@@ -64,6 +87,37 @@ public class UiArgumentsTest {
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
             assertEquals("Use either the argument 'shell' or the argument 'ref', not both.", e.getMessage());
+        }
+    }
+
+    @Test
+    public void testGetRef() {
+        assertEquals("w17", UiArguments.getRef(parse("{\"ref\":\" w17 \"}")));
+        for (String arguments : new String[] { "{}", "{\"ref\":null}", "{\"ref\":\" \"}" }) {
+            try {
+                UiArguments.getRef(parse(arguments));
+                fail("IllegalArgumentException expected for " + arguments);
+            } catch (IllegalArgumentException e) {
+                assertEquals("Argument 'ref' is missing.", e.getMessage());
+            }
+        }
+    }
+
+    @Test
+    public void testGetRequiredBoolean() {
+        assertTrue(UiArguments.getRequiredBoolean(parse("{\"checked\":true}"), "checked"));
+        assertFalse(UiArguments.getRequiredBoolean(parse("{\"checked\":false}"), "checked"));
+        try {
+            UiArguments.getRequiredBoolean(parse("{}"), "checked");
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Argument 'checked' is missing.", e.getMessage());
+        }
+        try {
+            UiArguments.getRequiredBoolean(parse("{\"checked\":\"yes\"}"), "checked");
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Argument 'checked' must be true or false.", e.getMessage());
         }
     }
 

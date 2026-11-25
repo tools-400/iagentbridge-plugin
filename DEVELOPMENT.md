@@ -69,14 +69,16 @@ Packages of `iAgentBridge UI Plugin`, see [UI tools](#ui-tools):
 
 | Package | Content |
 |---|---|
-| `de.tools400.iagentbridge.ui.tools` | `AbstractUiTool` (executes in a test instance or forwards), `UiSnapshotTool`, `UiScreenshotTool`, `UiArguments`, `ScreenshotFiles`, `ImageDataScaler` and `ImageScaler` (scale a screenshot down) |
+| `de.tools400.iagentbridge.ui.tools` | `AbstractUiTool` (executes in a test instance or forwards), `UiSnapshotTool`, `UiScreenshotTool`, `Snapshots`, `AbstractActionTool` (the flow of an action), `UiClickTool`, `UiTypeTool`, `UiSelectTool`, `UiCheckTool`, `UiMenuTool`, `UiKeyTool`, `UiCommandTool`, `UiWaitTool`, `UiLpexTool`, `UiArguments`, `ScreenshotFiles`, `ImageDataScaler` and `ImageScaler` (scale a screenshot down) |
+| `de.tools400.iagentbridge.ui.preferences` | `UiPreferences`, `UiToolsPreferencePage` (page *iAgentBridge > UI tools*); its texts in `de.tools400.iagentbridge.ui.Messages` |
 | `de.tools400.iagentbridge.ui.forwarding` | `TestInstanceFinder` (the test instance among the launches), `Forwarding` (which test instance, which token), `ForwardingClient` (HTTP), `ForwardedResult` (JSON-RPC response to `McpToolResult`), `TestInstance`, `CommandLine`, `TokenFile` |
-| `de.tools400.iagentbridge.ui.swt` | `UiThread` (code in the UI thread with a timeout), `WidgetRefs`, `ShellPicker`, `NativeDialogs`, `WidgetModelBuilder` (widgets to the model), `WorkbenchStateBuilder`, `ShellPainter` (image of a shell) |
-| `de.tools400.iagentbridge.ui.model` | the snapshot without SWT types: `WidgetNode`, `WorkbenchState`, `SnapshotWriter` (text), `LocatorBuilder`, `Mnemonics` |
+| `de.tools400.iagentbridge.ui.swt` | `UiThread` (code in the UI thread with a timeout), `WidgetRefs`, `ShellPicker`, `NativeDialogs`, `WidgetModelBuilder` (widgets to the model), `WorkbenchStateBuilder`, `ShellPainter` (image of a shell); for the actions `ActionTarget` (the widget and its checks), `ShellLock`, `WidgetEvents`, `KeyEvents`, `MenuWalker`, `ItemFinder`, `ForegroundGuard`, `ListenerFailures`, `LpexEdits` |
+| `de.tools400.iagentbridge.ui.model` | without SWT types: the snapshot (`WidgetNode`, `WorkbenchState`, `SnapshotWriter`, `LocatorBuilder`, `Mnemonics`) and the actions (`Deadline`, `Journal`, `JournalEntry`, `PendingFailures`, `KeyParser`, `KeyStroke`, `ItemPath`, `WaitCondition`, `LpexLines`) |
 
 The packages `model` and `forwarding` except `TestInstanceFinder`, and `UiArguments`,
 `ScreenshotFiles` and `ImageScaler` have no Eclipse dependencies, so that the tests run outside of
-RDi. The package `tools` uses `swt`, not the other way round.
+RDi; so has `UiThread.act()`, which takes the UI thread as an `Executor`. The package `tools` uses
+`swt`, not the other way round.
 
 ### Protocol
 
@@ -232,22 +234,24 @@ filters and cuts the stack traces (the default filters of the view *JUnit*) and 
 
 ### UI tools
 
-`ui_snapshot` and `ui_screenshot` of `iAgentBridge UI Plugin` come into the server by the extension
-point. `AbstractUiTool.execute()` executes a tool, if the system property `iagentbridge.uiTools`
-is `true` (a test instance); otherwise it forwards the call and never reads the user interface of
-its own RDi.
+The UI tools of `iAgentBridge UI Plugin` come into the server by the extension point.
+`AbstractUiTool.execute()` executes a tool, if the system property `iagentbridge.uiTools` is `true`
+(a test instance); otherwise it forwards the call and never reads the user interface of its own RDi.
 
 **Forwarding.** `TestInstanceFinder` looks for running launches of the type *Eclipse Application*
 (`org.eclipse.pde.ui.RuntimeWorkbench`), whose process has `-Diagentbridge.uiTools=true` in its
 command line (`IProcess.ATTR_CMDLINE`, set by JDT, with all variables resolved). The command line
 gives the port (`-Diagentbridge.port`) and, if set, the token (`-Diagentbridge.token`); else
 `TokenFile` reads the token file. The names of the system properties and the path of the token file
-are those of `ServerSettings` of the core plug-in, whose package is not exported; `TestInstance`
-and `TokenFile` repeat them. `Forwarding` decides: no test instance, several, no port, no token, or
-the call. `ForwardingClient` sends `tools/call` with the same name and arguments plus
-`forwarded: true` over `Proxy.NO_PROXY`, without `initialize`, because the server keeps no session;
-2 s to connect, 30 s for the answer. `ForwardedResult` returns texts and images of the test
-instance unchanged, after a line, that names it. A server without `uiTools`, that gets a call with
+are those of `ServerSettings` of the core plug-in, whose package is not exported; `TestInstance` and
+`TokenFile` repeat them. `Forwarding` decides: no test instance, several, no port, no token, or the
+call. `ForwardingClient` sends `tools/call` with the same name and arguments plus `forwarded: true`
+over `Proxy.NO_PROXY`, without `initialize`, because the server keeps no session; 2 s to connect, 30
+s for the answer (`ui_wait` its `timeoutSeconds` plus 20 s; the RDi, that forwards, checks this
+argument itself). The body goes with a fixed length (`setFixedLengthStreamingMode`): otherwise
+`HttpURLConnection` sends a POST again, when the server closes the connection without an answer, and
+an action would run twice. `ForwardedResult` returns texts and images of the test instance
+unchanged, after a line, that names it. A server without `uiTools`, that gets a call with
 `forwarded`, rejects it: if a launch with the UI tools had the port of the RDi, in which the
 developer works, that RDi would forward to itself; the server handles one request after the other,
 so the marked call runs after the first one has timed out, and the chain ends there.
@@ -282,6 +286,88 @@ topmost child first); title bar and menu bar are missing. Only the `ImageData` i
 thread; `ImageDataScaler` and `ImageLoader` scale and encode it outside. `ImageScaler` averages the
 area, that each new pixel covers, because picking the nearest pixel (`ImageData.scaledTo`) drops
 lines of characters and turns text unreadable.
+
+**Actions.** `AbstractActionTool` checks the arguments outside of the UI thread, then
+`UiThread.act()` passes one runnable to the UI thread: it checks the target, records the action in
+the journal and sends the events. An action may open a modal dialog, whose event loop runs, until
+the dialog is closed, so the server thread waits 1 s and then passes a probe: if the probe runs
+while the action has not returned, a dialog is open, and the tool returns the snapshot of it. A
+state, that changes with `compareAndSet` only (waiting, started, finished, expired, abandoned),
+decides between the start of the action and the end of the deadline: an action, that has not
+started, when the deadline ends, never runs, so that a repeated call does not click twice. An
+action, that ends after its tool returned, sets its entry in the journal and reports a failure
+through `PendingFailures` to the next UI tool. All work of a call in the UI thread shares one
+`Deadline` of 20 s, below the 30 s of the forwarding. The snapshot after an action runs after all
+code, that the action passed with `asyncExec`. A path in a tree (`ui_select`) is a prelude of steps,
+one runnable for each level, because a viewer like the one of *Remote Systems* creates the children
+only, when the UI thread is free; between the steps the server thread waits for the next item. The
+journal keeps the last 1000 actions with the locator of their widget for SWTBot tests; no tool
+returns it yet.
+
+**Events.** `WidgetEvents` sends the events of a user with `notifyListeners`, in the order of SWTBot
+3.1.0 (its sources are in the jar `org.eclipse.swtbot.swt.finder`), but all events of an action in
+one runnable, and never `Display.post`, `setFocus()` or `forceActive()` - SWTBot's `setFocus()`
+calls `forceActive()`, which brings the test instance to the front. An event to a widget, that is
+disposed meanwhile, e.g. a button, whose click closed its dialog, is skipped. ENTER clicks the
+default button with these events, not with `Shell.traverse(SWT.TRAVERSE_RETURN)`, which sends
+`BM_CLICK` to Windows; ESC is `Shell.traverse(SWT.TRAVERSE_ESCAPE)`, which closes the shell without
+input of the operating system. `MenuWalker` lets a menu fill itself with `Show` before it reads the
+items; it selects an item like `SWTBotMenu.click()`: `Hide` to the menus above it, then `Selection`.
+A radio item of a menu or a tool bar is selected like SWTBot does it: the radio item of its group,
+that was selected before, gets `Deactivate`, is deselected and gets `Selection`; a menu with
+`SWT.NO_RADIO_GROUP` has no group. A context menu starts with `MenuDetect`. `KeyEvents` sends
+KeyDown and KeyUp; an `LpexWindow` has no key listener of its own, so its keys go to `textWindow()`.
+Shortcuts of the workbench do not react to these events, and DELETE is no key of LPEX in RDi, so
+`ui_command` does these. `LpexEdits` inserts the text of `ui_lpex` with `insertText` and closes it
+with `undo check`, like the change of a key, so that LPEX counts it and an undo takes it back on its
+own, and then with `parse`, so that the RPG parser of RDi colors it at once; a read-only document is
+rejected. After `setText` a field gets KeyUp and FocusOut: JFace field editors check their value on
+KeyUp (`VALIDATE_ON_KEY_STROKE`) or on FocusOut (`VALIDATE_ON_FOCUS_LOST`), not on Modify.
+
+**Checks.** `ActionTarget` checks, that the control of the widget is visible and enabled. Before the
+events it activates the view or the editor of the widget like a click into the part, because the
+events alone do not activate it, and the items of a context menu would use the selection of another
+part: the `CTabFolder` of its part stack gets `Selection` with the tab of the part - the tab, that
+E4 marks with the data `modelElement`, not the tab of a page of an editor with pages like the Screen
+Designer. For an item of the tool bar of a view, which lies in the top right of the folder, it is
+the tab, that the folder shows. A viewer reuses its tree items and table rows, when it is refreshed,
+so a snapshot remembers the text of each item, that it shows: `WidgetModelBuilder` puts the text
+into the node, `SnapshotWriter` collects the nodes, that it writes - not those after the cut -, and
+`WidgetRefs.remember()` keeps them. An action on an item with another text is rejected. After an
+action, that closed its dialog or dropped its item, `ActionTarget.describe()` returns the
+description from before. `ShellLock` decides, whether a dialog blocks the shell: first
+`NativeDialogs`, because the internal method `Control.isActive()` of SWT does not see, that a native
+dialog blocks its parent; then `Control.isActive()` by reflection, which covers the modal styles of
+SWT; `Shell.isEnabled()` does not show the block. If the method is missing, the deepest visible
+application or system modal shell and its descendants are free.
+
+**Foreground.** A dialog, that an action opens, may lie on top of the other windows, although the
+test instance does not get the foreground: the keyboard stays with the window of the developer. It
+did so, when the test instance ran in the debugger; when it ran without, Windows put the dialog
+behind the window in the foreground. `ForegroundGuard` remembers at the start of an action, whether
+a window of another process is in the foreground; if so, it puts the active shell of the test
+instance behind all windows (`SetWindowPos` with `HWND_BOTTOM` and `SWP_NOACTIVATE`) after each
+activation of a shell during the action and at its end, with `asyncExec`, after `Shell.open()`. It
+calls the internal class `org.eclipse.swt.internal.win32.OS` by reflection. The preference *Dialogs,
+that an action opens in the test instance* (`UiPreferences`, page `UiToolsPreferencePage`) turns the
+guard off. The RDi, that forwards a call, adds its preference as the argument `keepDialogsBehind`,
+which no schema names; the test instance uses its own preference only, when the argument is missing.
+
+**Failures of listeners.** Since the SWT of RDi 9.8, `notifyListeners` passes an exception of a
+listener to the runtime exception handler of the display, an error to its error handler, and the
+workbench sets handlers, that do not throw them again. `ListenerFailures` puts handlers in front for
+the time of an action; they pass every failure on and hold those of the own calls of the action. A
+failure, above whose frame of the action a frame of `Display.readAndDispatch`,
+`Synchronizer.runAsyncMessages` or `Display.runTimer` lies, comes from a nested event loop, also the
+one of a native dialog, and is not held. While a native dialog is open, nothing is held: the loop of
+the dialog also runs listeners without such a frame, e.g. the `Settings` listeners, when Windows
+reports a changed setting. The frame of the action is found by the depth of the stack at its start,
+not by the name of a method, because all actions run the same code. The SWT of RDi 9.6 has no such
+handlers: there the exception reaches the action.
+
+**Commands.** `ui_command` executes a command with the handler service of the workbench window.
+Handlers, that depend on the active part, e.g. *Save*, may be disabled, while the test instance is
+in the background.
 
 **Working on the UI plug-in.** The RDi, in which you work, offers the tools of its installed UI
 plug-in. New tools or arguments of the workspace reach an agent only directly on the port of the
@@ -334,11 +420,20 @@ images.
 The tests in `eclipse/iAgentBridge UI JUnit` use no Eclipse types either. `SnapshotWriterTest`,
 `LocatorBuilderTest` and `MnemonicsTest` check the text of a snapshot from a model,
 `CommandLineTest` the command line of a test instance, `ForwardedResultTest` and `ForwardingTest`
-the result and the decisions of the forwarding, `ForwardingClientTest` the forwarding against a
-real `McpHttpServer` (image, wrong token, closed port, timeout and a call to itself),
-`UiArgumentsTest`, `ScreenshotFilesTest` and `ImageScalerTest` the arguments, the files and the
-scaling of the screenshots. The widgets themselves, the forwarding from the RDi, in which you work,
-and the screenshots are tested by hand with a test instance.
+the result and the decisions of the forwarding, `ForwardingClientTest` the forwarding against a real
+`McpHttpServer` (image, wrong token, closed port, timeout and a call to itself), `UiArgumentsTest`,
+`ScreenshotFilesTest` and `ImageScalerTest` the arguments, the files and the scaling of the
+screenshots. For the actions `UiThreadTest` checks `UiThread.act()` with a thread of its own in
+place of the UI thread (an action, that ends, opens a dialog, runs too long, or never runs),
+`JournalTest` the journal and `PendingFailures`, `KeyParserTest`, `ItemPathTest`,
+`WaitConditionTest` and `LpexLinesTest` the keys, paths, conditions and the lines of `ui_lpex`,
+`AbstractActionToolTest` the flow of an action without a display (failures of earlier actions, a
+failing snapshot, the guard for the foreground), `UiToolsTest` single tools without a widget,
+`ForwardingClientTest`, that a POST is sent only once, and `UiMessagesTest`, that both languages
+have the keys of `Messages`. The widgets themselves, the events of the actions, the forwarding from
+the RDi, in which you work, and the screenshots are tested by hand with a test instance.
+`AbstractActionToolTest` and `UiToolsTest` lie in the package `de.tools400.iagentbridge.ui.tools` of
+the plug-in, because they call package visible methods of the tools.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the

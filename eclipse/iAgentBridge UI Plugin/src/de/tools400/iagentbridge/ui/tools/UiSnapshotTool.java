@@ -8,28 +8,15 @@
 
 package de.tools400.iagentbridge.ui.tools;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.Widget;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import de.tools400.iagentbridge.mcp.McpToolResult;
 import de.tools400.iagentbridge.mcp.ToolArguments;
-import de.tools400.iagentbridge.ui.model.SnapshotWriter;
-import de.tools400.iagentbridge.ui.model.WidgetNode;
-import de.tools400.iagentbridge.ui.model.WorkbenchState;
-import de.tools400.iagentbridge.ui.swt.ShellPicker;
 import de.tools400.iagentbridge.ui.swt.UiThread;
 import de.tools400.iagentbridge.ui.swt.UiThreadBusyException;
-import de.tools400.iagentbridge.ui.swt.WidgetModelBuilder;
-import de.tools400.iagentbridge.ui.swt.WidgetRefs;
-import de.tools400.iagentbridge.ui.swt.WorkbenchStateBuilder;
 
 /**
  * Tool 'ui_snapshot': the state of the workbench and the widget tree of a shell
@@ -52,8 +39,6 @@ public class UiSnapshotTool extends AbstractUiTool {
         + "\"maxNodes\":{\"type\":\"integer\",\"description\":\"Number of widgets, after which the snapshot is cut. Default: 400.\"}," //$NON-NLS-1$
         + "\"toolItems\":{\"type\":\"boolean\",\"description\":\"Also show the tool bars and their items. Default: false.\"}}}"; //$NON-NLS-1$
 
-    private static final int DEFAULT_MAX_NODES = 400;
-
     @Override
     public String getName() {
         return "ui_snapshot"; //$NON-NLS-1$
@@ -75,63 +60,17 @@ public class UiSnapshotTool extends AbstractUiTool {
         String shell = UiArguments.getOptionalString(anArguments, "shell"); //$NON-NLS-1$
         String ref = UiArguments.getOptionalString(anArguments, "ref"); //$NON-NLS-1$
         UiArguments.checkShellOrRef(shell, ref);
-        int maxNodes = ToolArguments.getInt(anArguments, "maxNodes", DEFAULT_MAX_NODES, 1); //$NON-NLS-1$
+        int maxNodes = ToolArguments.getInt(anArguments, "maxNodes", Snapshots.DEFAULT_MAX_NODES, 1); //$NON-NLS-1$
         boolean toolItems = UiArguments.getBoolean(anArguments, "toolItems", false); //$NON-NLS-1$
 
         Display display = getDisplay();
-        Snapshot snapshot;
+        Snapshots.Snapshot snapshot;
         try {
-            snapshot = UiThread.read(display, UI_TIMEOUT_SECONDS, () -> take(display, shell, ref));
+            snapshot = UiThread.read(display, UI_TIMEOUT_SECONDS, () -> Snapshots.take(display, shell, ref));
         } catch (UiThreadBusyException e) {
             return busy(e);
         }
 
-        return McpToolResult.success(new SnapshotWriter(maxNodes, toolItems).write(snapshot.state, snapshot.roots));
-    }
-
-    /**
-     * Takes the snapshot in the UI thread.
-     */
-    private static Snapshot take(Display aDisplay, String aShell, String aRef) {
-
-        WidgetRefs.purge();
-        WorkbenchState state = WorkbenchStateBuilder.build(aDisplay);
-        WidgetModelBuilder builder = new WidgetModelBuilder(aDisplay.getFocusControl());
-
-        List<WidgetNode> roots = new ArrayList<WidgetNode>();
-        if (aRef != null) {
-            Widget widget = WidgetRefs.get(aRef);
-            if (!(widget instanceof Control)) {
-                throw new IllegalArgumentException("Ref " + aRef + " is an item, not a widget. Use the reference of its tree, table or folder."); //$NON-NLS-1$ //$NON-NLS-2$
-            }
-            roots.add(builder.build((Control)widget));
-        } else if (ShellPicker.ALL.equals(aShell)) {
-            for (Shell shell : ShellPicker.visibleShells(aDisplay)) {
-                roots.add(builder.build(shell));
-            }
-        } else {
-            Shell shell = aShell == null ? ShellPicker.activeShell(aDisplay) : ShellPicker.find(aDisplay, aShell);
-            if (shell == null) {
-                roots.add(WidgetNode.note("no visible shell")); //$NON-NLS-1$
-            } else {
-                roots.add(builder.build(shell));
-            }
-        }
-
-        return new Snapshot(state, roots);
-    }
-
-    /**
-     * The model of a snapshot.
-     */
-    private static final class Snapshot {
-
-        private final WorkbenchState state;
-        private final List<WidgetNode> roots;
-
-        private Snapshot(WorkbenchState aState, List<WidgetNode> aRoots) {
-            state = aState;
-            roots = aRoots;
-        }
+        return McpToolResult.success(takePendingFailures() + snapshot.write(maxNodes, toolItems));
     }
 }

@@ -32,6 +32,7 @@ public final class WidgetNode {
     private final List<WidgetNode> children;
     private String locator;
     private String tooltip;
+    private String itemText;
 
     private WidgetNode(String aType, String aText, String aRef) {
         type = aType;
@@ -149,6 +150,27 @@ public final class WidgetNode {
 
     public String getTooltip() {
         return tooltip;
+    }
+
+    /**
+     * Sets the text of an item, that an action checks: the texts of all its
+     * columns. The snapshot remembers it, if it writes the item.
+     *
+     * @param anItemText - the text
+     * @return this node
+     */
+    public WidgetNode setItemText(String anItemText) {
+        itemText = anItemText;
+        return this;
+    }
+
+    /**
+     * Returns the text of an item, that an action checks.
+     *
+     * @return the text or <code>null</code>, if the node is no item
+     */
+    public String getItemText() {
+        return itemText;
     }
 
     public List<WidgetNode> getChildren() {
