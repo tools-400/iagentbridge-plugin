@@ -17,14 +17,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.Proxy;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.After;
 import org.junit.Test;
@@ -142,6 +147,28 @@ public class ForwardingClientTest {
     }
 
     /**
+     * A server, that closes the connection without an answer, gets the call
+     * only once. HttpURLConnection would send the POST again silently, which
+     * would be a second click of an action.
+     */
+    @Test
+    public void testCall_closedWithoutAnswer_sentOnce() throws IOException {
+
+        AtomicInteger requests = new AtomicInteger();
+        try (ServerSocket socket = new ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))) {
+            Thread acceptor = new Thread(() -> closeWithoutAnswer(socket, requests), "closeWithoutAnswer");
+            acceptor.setDaemon(true);
+            acceptor.start();
+
+            McpToolResult result = new ForwardingClient(2000, 5000).call(instance(socket.getLocalPort()), TOKEN, "ui_click", new JsonObject());
+
+            assertTrue(result.isError());
+            sleep(300);
+            assertEquals("requests", 1, requests.get());
+        }
+    }
+
+    /**
      * A launch with the UI tools and the port of the RDi, in which the
      * developer works: the RDi forwards to itself. The server handles one
      * request at a time, so the forwarded call waits until the first one timed
@@ -208,6 +235,39 @@ public class ForwardingClientTest {
             }
         } finally {
             connection.disconnect();
+        }
+    }
+
+    /**
+     * Accepts connections, reads the request and closes the connection without
+     * an answer.
+     */
+    private static void closeWithoutAnswer(ServerSocket aSocket, AtomicInteger aRequests) {
+        while (!aSocket.isClosed()) {
+            try (Socket connection = aSocket.accept()) {
+                readRequest(connection.getInputStream());
+                aRequests.incrementAndGet();
+            } catch (IOException e) {
+                // The socket is closed at the end of the test.
+            }
+        }
+    }
+
+    /**
+     * Reads the head and the body of an HTTP request.
+     */
+    private static void readRequest(InputStream anInput) throws IOException {
+
+        StringBuilder head = new StringBuilder();
+        int c;
+        while (!head.toString().endsWith("\r\n\r\n") && (c = anInput.read()) != -1) {
+            head.append((char)c);
+        }
+
+        Matcher length = Pattern.compile("(?i)content-length: *(\\d+)").matcher(head);
+        int remaining = length.find() ? Integer.parseInt(length.group(1)) : 0;
+        while (remaining > 0 && anInput.read() != -1) {
+            remaining--;
         }
     }
 

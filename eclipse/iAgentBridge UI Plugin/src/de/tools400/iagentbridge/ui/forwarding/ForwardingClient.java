@@ -110,8 +110,13 @@ public final class ForwardingClient {
             connection.setRequestProperty("Authorization", "Bearer " + aToken); //$NON-NLS-1$ //$NON-NLS-2$
             connection.setRequestProperty("MCP-Protocol-Version", PROTOCOL_VERSION); //$NON-NLS-1$
 
+            // A fixed length streams the body: then HttpURLConnection never
+            // sends the POST again, when the server closes the connection
+            // without an answer. A second call would be a second click.
+            byte[] requestBytes = request.toString().getBytes(StandardCharsets.UTF_8);
+            connection.setFixedLengthStreamingMode(requestBytes.length);
             try (OutputStream out = connection.getOutputStream()) {
-                out.write(request.toString().getBytes(StandardCharsets.UTF_8));
+                out.write(requestBytes);
             }
 
             int status = connection.getResponseCode();
