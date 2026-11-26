@@ -21,7 +21,8 @@ How the plug-in works, how to add a tool and how to run the tests. For its use, 
   * `build/iAgentBridge Build`: the release script.
 * To install the plug-in from the sources into the running RDi, choose *File > Export... >
   Plug-in Development > Deployable plug-ins and fragments*, select
-  `de.tools400.iagentbridge.core.plugin` and the destination *Install into host*, then restart RDi.
+  `de.tools400.iagentbridge.core.plugin`, for the UI tools also
+  `de.tools400.iagentbridge.ui.plugin`, and the destination *Install into host*, then restart RDi.
 * Java 8 byte code, so that the plug-in runs in RDi 9.6.
 * The plug-in uses internal classes of JDT (`CleanUpRefactoring`, `JavaPlugin`), which are the
   only way to run Clean Up like the menu. RDi shows *Discouraged access* warnings for them.
@@ -44,8 +45,7 @@ How the plug-in works, how to add a tool and how to run the tests. For its use, 
 * Release: `build/iAgentBridge Build/build/build.xml` (same script as IFS Projects, iRPGFormatter,
   iRPGUnit, iSphere, JCRCMDS and Rapid Fire, settings in `build.properties`: no manual, no
   Eclipse Marketplace). Update site and home page go to `docs/` of the repository
-  `iagentbridge` (GitHub Pages). `.github/workflows` tags a release version and mirrors the
-  release into that repository.
+  `iagentbridge` (GitHub Pages).
 
 ## Architecture
 
@@ -166,13 +166,13 @@ operation with these children.
 2. The second job builds the active build configurations of the projects with
    `IWorkspace.build(..., buildReferences = true, ...)`.
 
-The build must not run in the operation of the refresh: PDE changes the class path container of
-a project, whose `MANIFEST.MF` changed, only at the resource change event at the end of that
+The build must not run in the operation of the refresh: PDE changes the class path container of a
+project, whose `MANIFEST.MF` changed, only at the resource change event at the end of that
 operation, often in a job of its own (`PluginModelManager$UpdateClasspathsJob`, rule of the
-workspace root, no family). A build in the same operation used the old class path, and nothing built
-the project again. The build job, scheduled after the end of the refresh, runs after that job.
-Afterwards the tool joins `ResourcesPlugin.FAMILY_AUTO_BUILD`, also with `build: none`, because an
-automatic build, that is still running, adds markers later.
+workspace root, no family). A build in the same operation would use the old class path, and nothing
+would build the project again. The build job, scheduled after the end of the refresh, runs after
+that job. Afterwards the tool joins `ResourcesPlugin.FAMILY_AUTO_BUILD`, also with `build: none`,
+because an automatic build, that is still running, adds markers later.
 
 The problems are the markers of type `IMarker.PROBLEM` and its subtypes, e.g. of JDT and PDE;
 `ProblemReport` filters, sorts and cuts them. With `files` the tool also reads the markers of
@@ -223,9 +223,9 @@ build. The launch gets a monitor, that passes only the cancellation of the job o
 *Progress* shows the running test instead of the progress of the launch, because JDT does not tell
 the number of tests in advance. The timeout starts, when `launch()` returns, i.e. after a dialog of
 RDi. A launch, that RDi did not start, e.g. because a dialog was cancelled, has no process; it ends
-the test run at once (`Launch.isTerminated()` is `false` for such a launch, so the tool must not wait
-for its end). It recognizes its test run by `ITestRunSession.getTestRunName()`, the name of the launch
-configuration, because the API of JDT has no link from a test run to its launch. JDT calls
+the test run at once (`Launch.isTerminated()` is `false` for such a launch, so the tool must not
+wait for its end). It recognizes its test run by `ITestRunSession.getTestRunName()`, the name of the
+launch configuration, because the API of JDT has no link from a test run to its launch. JDT calls
 `sessionFinished()` only, when the test run completes or is stopped in the view *JUnit*, not when
 the launch is terminated or the test VM exits (`sessionTerminated` of the internal model). So the
 results are collected test by test in `testCaseFinished()`, the failures of test classes (e.g. of a
@@ -258,9 +258,10 @@ unchanged, after a line, that names it. `ForwardingClient.send()` also returns t
 outcome - answered, connection refused, connection broken after sending, no answer in time, or
 rejected (token, HTTP status, no JSON) -, which `stop_launch` decides on; only unsaved changes it
 finds by the start of the text of `ui_close` (`CloseResult`). `call()` returns the result only. A
-server without `uiTools`, that gets a call with `forwarded`, rejects it: if a launch with the UI tools had the port of the RDi, in which the
-developer works, that RDi would forward to itself; the server handles one request after the other,
-so the marked call runs after the first one has timed out, and the chain ends there.
+server without `uiTools`, that gets a call with `forwarded`, rejects it: if a launch with the UI
+tools had the port of the RDi, in which the developer works, that RDi would forward to itself; the
+server handles one request after the other, so the marked call runs after the first one has timed
+out, and the chain ends there.
 
 **Threads.** `UiThread.read()` passes the code to the UI thread with `asyncExec` and waits at most
 10 s; code, that gets its turn later, is skipped. `syncExec` would block the server, as long as the
@@ -351,7 +352,7 @@ application or system modal shell and its descendants are free.
 
 **Foreground.** A dialog, that an action opens, may lie on top of the other windows, although the
 test instance does not get the foreground: the keyboard stays with the window of the developer. It
-did so, when the test instance ran in the debugger; when it ran without, Windows put the dialog
+does so, when the test instance runs in the debugger; when it runs without, Windows puts the dialog
 behind the window in the foreground. `ForegroundGuard` remembers at the start of an action, whether
 a window of another process is in the foreground; if so, it puts the active shell of the test
 instance behind all windows (`SetWindowPos` with `HWND_BOTTOM` and `SWP_NOACTIVATE`) after each
@@ -453,20 +454,21 @@ terminated.
 `uiTools`, without `force`, that is not suspended in the debugger and whose identity is `SAME`, gets
 `ui_close` directly at its instance (`ForwardingClient.send()`, not `Forwarding`, which rejects,
 while several instances run); with `UNKNOWN` it is terminated, so that the workbench of another
-instance is never closed. `UiCloseTool` reads the dirty editors and the dirty
-views, that are an `ISaveablePart` (the *Project Explorer* is one), in the UI thread; without any,
-it closes the open dialogs with `OpenDialogs`, then passes `IWorkbench.close()` with `asyncExec` and
-answers at once. `close()` asks nothing, but it waits in an event loop for running operations: with
-the connect of RSE, whose progress dialog *Progress Information* waits for the sign-on *Enter
-Password* (both modal children of the workbench window), it never returns, and the test instance
-runs on. `OpenDialogs` closes the modal shells with `Shell.close()`, the children before their
-parent: a JFace dialog answers the event `Close` with *Cancel*, but returns *OK*, if its shell is
-only disposed together with its parent. The cancelled connect ends, its progress dialog closes, and
-the process ends after 3 to 5 s, also with an open native dialog. Shells, that are not modal, e.g.
-the workbench windows and the hidden shells of E4, stay. An answer without error, or a connection,
-that breaks after sending (the server may stop before it answers), means waiting for
-`ILaunch.isTerminated()`; unsaved parts mean rejecting (`CloseResult.isUnsaved()` finds the start
-of its text also after the line of a forwarded result); any other outcome and the end of
+instance is never closed. `UiCloseTool` reads the dirty editors and the dirty views, that are an
+`ISaveablePart` (the *Project Explorer* is one), in the UI thread; without any, it closes the open
+dialogs with `OpenDialogs`, then passes `IWorkbench.close()` with `asyncExec` and answers at once.
+`close()` asks nothing, also not with *Confirm exit when closing last window*, which a new workspace
+has on (tested in RDi 9.6 and 9.9), but it waits in an event loop for running operations: with the
+connect of RSE, whose progress dialog *Progress Information* waits for the sign-on *Enter Password*
+(both modal children of the workbench window), it never returns, and the test instance runs on.
+`OpenDialogs` closes the modal shells with `Shell.close()`, the children before their parent: a
+JFace dialog answers the event `Close` with *Cancel*, but returns *OK*, if its shell is only
+disposed together with its parent. The cancelled connect ends, its progress dialog closes, and the
+process ends after 3 to 5 s, also with an open native dialog. Shells, that are not modal, e.g. the
+workbench windows and the hidden shells of E4, stay. An answer without error, or a connection, that
+breaks after sending (the server may stop before it answers), means waiting for
+`ILaunch.isTerminated()`; unsaved parts mean rejecting (`CloseResult.isUnsaved()` finds the start of
+its text also after the line of a forwarded result); any other outcome and the end of
 `timeoutSeconds` mean `ILaunch.terminate()`, with a reason in own words: the texts of the
 forwarding, e.g. *still starting?*, do not fit, after the instance answered `workspace_info`.
 `stop_launch` says, when the process still runs 10 s after `terminate()`. RDi 9.6 logs *The
@@ -522,7 +524,11 @@ filter of the stack traces and JSON; the launch and the events of JDT are tested
 instance and test projects with green, red and hanging tests. `ProjectDirectoriesTest` checks the
 search of `import_projects` in temporary directories and `ImportReportTest` its result; the import
 itself is tested by hand with a test instance. `McpToolResultTest` checks the JSON of results with
-images.
+images, `McpDispatcherTest` the messages of the protocol (`initialize`, `ping`, `tools/list`,
+`tools/call`, notifications, errors and which of them go to the error log), `ToolArgumentsTest` the
+arguments of the tools, `ServerSettingsTest` port, server name and `serverEnabled` from the
+preferences and the system properties, `ClientCommandsTest` the name of the server and the command
+for Claude Code, `CleanUpProfileNamesTest` the description of the clean-up profile of a project.
 
 The tests in `eclipse/iAgentBridge UI JUnit` use no Eclipse types either. `SnapshotWriterTest`,
 `LocatorBuilderTest` and `MnemonicsTest` check the text of a snapshot from a model,
@@ -553,8 +559,9 @@ package visible methods.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the
-`messages*.properties` into the output and run `org.junit.runner.JUnitCore` with Gson, JUnit,
-Hamcrest and `org.eclipse.osgi` (for `NLS`) of `C:\IBM\SDPShared\plugins` on the classpath.
+`messages*.properties` into the output and run `org.junit.runner.JUnitCore` with the same bundles
+and JUnit and Hamcrest on the classpath: besides Gson and `org.eclipse.osgi` (for `NLS`), the tests
+of the UI plug-in load classes of SWT.
 
 A test with a real client: start an `McpHttpServer` with a test tool and let Claude Code call it
 with a configuration file of its own, without changing the configuration of the user:

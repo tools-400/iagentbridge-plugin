@@ -152,7 +152,7 @@ not for a user. The agent sees the text of the result; JSON is easy for it to re
 * **Life cycle**: the server creates the tools, when it starts - when RDi starts, and when the
   preference page restarts it. Changes to the installed tools need a restart of RDi.
 * **Errors**: a tool, that cannot be created, that fails to describe itself or whose name is
-  invalid or taken, is left out. The *Error Log* view shows the reason. The message
+  invalid or taken, is left out. The view *Error Log* shows the reason. The message
   `iAgentBridge server listening on ...` lists the names of the tools, that the server offers.
 * **Files of the workspace**: refresh a file before you read it, e.g. with
   `IFile.refreshLocal()`; the agent changes files outside of RDi.
