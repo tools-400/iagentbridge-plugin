@@ -5,7 +5,8 @@
    <!--
      ==========================================================================
        UI tools of the MCP server of iAgentBridge: read and operate the user
-       interface of a test instance, forwarded to it from any other RDi
+       interface of a test instance, forwarded to it from any other RDi, and
+       start and stop test instances
      ==========================================================================
    -->
 
@@ -53,6 +54,26 @@
       <tool
             id="de.tools400.iagentbridge.ui.lpex"
             class="de.tools400.iagentbridge.ui.tools.UiLpexTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.errorlog"
+            class="de.tools400.iagentbridge.ui.tools.UiErrorLogTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.close"
+            class="de.tools400.iagentbridge.ui.tools.UiCloseTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.launch.start"
+            class="de.tools400.iagentbridge.ui.tools.StartLaunchTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.launch.stop"
+            class="de.tools400.iagentbridge.ui.tools.StopLaunchTool">
+      </tool>
+      <tool
+            id="de.tools400.iagentbridge.ui.launch.list"
+            class="de.tools400.iagentbridge.ui.tools.ListLaunchesTool">
       </tool>
    </extension>
 

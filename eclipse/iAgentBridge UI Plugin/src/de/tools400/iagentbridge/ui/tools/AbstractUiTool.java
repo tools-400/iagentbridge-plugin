@@ -37,6 +37,12 @@ public abstract class AbstractUiTool implements IMcpTool {
     /** Time, that the UI thread has to run a request */
     protected static final int UI_TIMEOUT_SECONDS = 10;
 
+    /**
+     * Text, when the display ended, e.g. after an action closed the last dialog
+     * of a closing workbench
+     */
+    protected static final String WORKBENCH_ENDED = "The workbench of the test instance has ended."; //$NON-NLS-1$
+
     private static final PendingFailures PENDING_FAILURES = new PendingFailures();
 
     /** End of the description of every UI tool */
@@ -134,7 +140,7 @@ public abstract class AbstractUiTool implements IMcpTool {
      * @return error result
      */
     protected static McpToolResult busy(UiThreadBusyException anException) {
-        return McpToolResult.error(
-            anException.getMessage() + " - a long operation or a native dialog of Windows (e.g. a file dialog) may block it. Try again later."); //$NON-NLS-1$
+        return McpToolResult.error(anException.getMessage()
+            + " - a long operation, a thread stopped in the debugger or a native dialog of Windows (e.g. a file dialog) may block it. Try again later."); //$NON-NLS-1$
     }
 }

@@ -15,6 +15,7 @@ import static org.junit.Assert.fail;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -140,6 +141,40 @@ public class AbstractActionToolTest {
 
         assertEquals("The action has not returned yet - a dialog is open.", result.getText()); //$NON-NLS-1$
         assertEquals("The earlier action ui_test failed: java.lang.IllegalStateException: own failure\n", AbstractUiTool.takePendingFailures()); //$NON-NLS-1$
+    }
+
+    @Test
+    public void testActionThatEndsTheWorkbench() throws Exception {
+
+        AtomicInteger calls = new AtomicInteger();
+        // After the action, e.g. ESC on the last dialog of a closing
+        // workbench, the display has ended and rejects the code of the snapshot
+        // and of the end of the guard.
+        Executor ui = aRunnable -> {
+            if (calls.incrementAndGet() > 1) {
+                throw new RejectedExecutionException("The display has ended."); //$NON-NLS-1$
+            }
+            aRunnable.run();
+        };
+        McpToolResult result = new TestTool(aContext -> "Pressed ESC: closed shell \"Kennwort eingeben\" [w4].") //$NON-NLS-1$
+            .execute(arguments("{\"keepDialogsBehind\":true}"), null, ui, () -> () -> { //$NON-NLS-1$
+                // Stops the guard.
+            });
+
+        assertFalse(result.getText(), result.isError());
+        assertEquals("Pressed ESC: closed shell \"Kennwort eingeben\" [w4].\nThe workbench of the test instance has ended.", result.getText()); //$NON-NLS-1$
+    }
+
+    @Test
+    public void testWaitAfterTheEndOfTheWorkbench() throws Exception {
+
+        Executor ended = aRunnable -> {
+            throw new RejectedExecutionException("The display has ended."); //$NON-NLS-1$
+        };
+        McpToolResult result = new UiWaitTool().execute(arguments("{\"shell\":\"Preferences\",\"timeoutSeconds\":1}"), null, ended); //$NON-NLS-1$
+
+        assertTrue(result.isError());
+        assertEquals("Waiting for the shell \"Preferences\" stopped. The workbench of the test instance has ended.", result.getText()); //$NON-NLS-1$
     }
 
     @Test

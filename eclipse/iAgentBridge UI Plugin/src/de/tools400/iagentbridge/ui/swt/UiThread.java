@@ -11,12 +11,15 @@ package de.tools400.iagentbridge.ui.swt;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.SWTException;
 import org.eclipse.swt.widgets.Display;
 
 import de.tools400.iagentbridge.ui.model.Deadline;
@@ -44,12 +47,24 @@ public final class UiThread {
 
     /**
      * Returns the executor, that passes code to the UI thread with asyncExec.
+     * After the end of the display, e.g. when an action closed the last dialog
+     * of a closing workbench, it throws a RejectedExecutionException, which the
+     * tools handle without types of SWT.
      *
      * @param aDisplay - the display
      * @return executor
      */
     public static Executor executor(Display aDisplay) {
-        return aDisplay::asyncExec;
+        return aRunnable -> {
+            try {
+                aDisplay.asyncExec(aRunnable);
+            } catch (SWTException e) {
+                if (e.code == SWT.ERROR_DEVICE_DISPOSED) {
+                    throw new RejectedExecutionException("The display has ended.", e); //$NON-NLS-1$
+                }
+                throw e;
+            }
+        };
     }
 
     /**

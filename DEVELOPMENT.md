@@ -65,20 +65,23 @@ dependencies, so that the tests run outside of RDi. Gson is imported with `Impor
 RDi (2.2.4 and 2.8.2 in RDi 9.6), so the code uses only the API of Gson 2.2.4, e.g.
 `new JsonParser().parse(...)`.
 
-Packages of `iAgentBridge UI Plugin`, see [UI tools](#ui-tools):
+Packages of `iAgentBridge UI Plugin`, see [UI tools](#ui-tools) and [Launch tools](#launch-tools):
 
 | Package | Content |
 |---|---|
-| `de.tools400.iagentbridge.ui.tools` | `AbstractUiTool` (executes in a test instance or forwards), `UiSnapshotTool`, `UiScreenshotTool`, `Snapshots`, `AbstractActionTool` (the flow of an action), `UiClickTool`, `UiTypeTool`, `UiSelectTool`, `UiCheckTool`, `UiMenuTool`, `UiKeyTool`, `UiCommandTool`, `UiWaitTool`, `UiLpexTool`, `UiArguments`, `ScreenshotFiles`, `ImageDataScaler` and `ImageScaler` (scale a screenshot down) |
+| `de.tools400.iagentbridge.ui.tools` | `AbstractUiTool` (executes in a test instance or forwards), `UiSnapshotTool`, `UiScreenshotTool`, `Snapshots`, `AbstractActionTool` (the flow of an action), `UiClickTool`, `UiTypeTool`, `UiSelectTool`, `UiCheckTool`, `UiMenuTool`, `UiKeyTool`, `UiCommandTool`, `UiWaitTool`, `UiLpexTool`, `UiErrorLogTool`, `UiCloseTool`, `UiArguments`, `ScreenshotFiles`, `ImageDataScaler` and `ImageScaler` (scale a screenshot down); the tools of the RDi, in which the developer works: `StartLaunchTool`, `StopLaunchTool`, `ListLaunchesTool` and `LaunchToolSupport` |
+| `de.tools400.iagentbridge.ui.launches` | for these tools: `Launches` (launch configurations and launches), `LaunchInfo` and `RunningLaunch` (without Eclipse types), `StartChecks` and `LaunchProblems` (checks before the start), `LaunchStarter` (the start in a job), `PortProbe`, `Identity` (who answers at a port), `WorkspaceLock`, `StopDecision` (how to end a launch), `CloseResult` (the result of `ui_close`), `HotCodeReplace` |
 | `de.tools400.iagentbridge.ui.preferences` | `UiPreferences`, `UiToolsPreferencePage` (page *iAgentBridge > UI tools*); its texts in `de.tools400.iagentbridge.ui.Messages` |
 | `de.tools400.iagentbridge.ui.forwarding` | `TestInstanceFinder` (the test instance among the launches), `Forwarding` (which test instance, which token), `ForwardingClient` (HTTP), `ForwardedResult` (JSON-RPC response to `McpToolResult`), `TestInstance`, `CommandLine`, `TokenFile` |
-| `de.tools400.iagentbridge.ui.swt` | `UiThread` (code in the UI thread with a timeout), `WidgetRefs`, `ShellPicker`, `NativeDialogs`, `WidgetModelBuilder` (widgets to the model), `WorkbenchStateBuilder`, `ShellPainter` (image of a shell); for the actions `ActionTarget` (the widget and its checks), `ShellLock`, `WidgetEvents`, `KeyEvents`, `MenuWalker`, `ItemFinder`, `ForegroundGuard`, `ListenerFailures`, `LpexEdits` |
-| `de.tools400.iagentbridge.ui.model` | without SWT types: the snapshot (`WidgetNode`, `WorkbenchState`, `SnapshotWriter`, `LocatorBuilder`, `Mnemonics`) and the actions (`Deadline`, `Journal`, `JournalEntry`, `PendingFailures`, `KeyParser`, `KeyStroke`, `ItemPath`, `WaitCondition`, `LpexLines`) |
+| `de.tools400.iagentbridge.ui.swt` | `UiThread` (code in the UI thread with a timeout), `WidgetRefs`, `ShellPicker`, `NativeDialogs`, `WidgetModelBuilder` (widgets to the model), `WorkbenchStateBuilder`, `ShellPainter` (image of a shell); for the actions `ActionTarget` (the widget and its checks), `ShellLock`, `WidgetEvents`, `KeyEvents`, `MenuWalker`, `ItemFinder`, `ForegroundGuard`, `ListenerFailures`, `LpexEdits`; for `ui_close` `OpenDialogs` |
+| `de.tools400.iagentbridge.ui.model` | without SWT types: the snapshot (`WidgetNode`, `WorkbenchState`, `SnapshotWriter`, `LocatorBuilder`, `Mnemonics`) and the actions (`Deadline`, `Journal`, `JournalEntry`, `PendingFailures`, `KeyParser`, `KeyStroke`, `ItemPath`, `WaitCondition`, `LpexLines`) and the error log (`ErrorLogEntry`, `ErrorLogParser`, `ErrorLogReport`) |
 
-The packages `model` and `forwarding` except `TestInstanceFinder`, and `UiArguments`,
-`ScreenshotFiles` and `ImageScaler` have no Eclipse dependencies, so that the tests run outside of
-RDi; so has `UiThread.act()`, which takes the UI thread as an `Executor`. The package `tools` uses
-`swt`, not the other way round.
+The packages `model` and `forwarding` except `TestInstanceFinder`, the classes `LaunchInfo`,
+`RunningLaunch`, `StartChecks`, `StopDecision`, `CloseResult`, `PortProbe`, `Identity` and
+`WorkspaceLock` of `launches`, and `UiArguments`, `ScreenshotFiles` and `ImageScaler` have no
+Eclipse dependencies, so that the tests run outside of RDi; so has `UiThread.act()`, which takes the
+UI thread as an
+`Executor`. The package `tools` uses `swt` and `launches`, not the other way round.
 
 ### Protocol
 
@@ -251,14 +254,19 @@ s for the answer (`ui_wait` its `timeoutSeconds` plus 20 s; the RDi, that forwar
 argument itself). The body goes with a fixed length (`setFixedLengthStreamingMode`): otherwise
 `HttpURLConnection` sends a POST again, when the server closes the connection without an answer, and
 an action would run twice. `ForwardedResult` returns texts and images of the test instance
-unchanged, after a line, that names it. A server without `uiTools`, that gets a call with
-`forwarded`, rejects it: if a launch with the UI tools had the port of the RDi, in which the
+unchanged, after a line, that names it. `ForwardingClient.send()` also returns the kind of the
+outcome - answered, connection refused, connection broken after sending, no answer in time, or
+rejected (token, HTTP status, no JSON) -, which `stop_launch` decides on; only unsaved changes it
+finds by the start of the text of `ui_close` (`CloseResult`). `call()` returns the result only. A
+server without `uiTools`, that gets a call with `forwarded`, rejects it: if a launch with the UI tools had the port of the RDi, in which the
 developer works, that RDi would forward to itself; the server handles one request after the other,
 so the marked call runs after the first one has timed out, and the chain ends there.
 
 **Threads.** `UiThread.read()` passes the code to the UI thread with `asyncExec` and waits at most
 10 s; code, that gets its turn later, is skipped. `syncExec` would block the server, as long as the
-UI thread is busy, e.g. in a long operation.
+UI thread is busy, e.g. in a long operation. After the end of the display, e.g. when an action
+closed the last dialog of a closing workbench, the executor of `UiThread.executor()` throws a
+`RejectedExecutionException`; an action then reports, that the workbench has ended.
 
 **Snapshot.** In the UI thread `WorkbenchStateBuilder` and `WidgetModelBuilder` build a model
 without SWT types; `SnapshotWriter` writes the text outside of it. Plain composites are left out,
@@ -369,10 +377,109 @@ handlers: there the exception reaches the action.
 Handlers, that depend on the active part, e.g. *Save*, may be disabled, while the test instance is
 in the background.
 
+**Error log.** `UiErrorLogTool` reads `Platform.getLogFileLocation()` in the server thread, so it
+answers also, while the UI thread is busy. The `.log` of Equinox is UTF-8: `!SESSION` before the
+first entry of a start and at the start of every file after a rotation, followed by a header up to
+the first `!ENTRY`; `!ENTRY <plug-in> <severity> <code> <date>`, `!MESSAGE` with continuation lines,
+`!STACK <code>`, `!SUBENTRY <depth> ...` for child entries and an empty line after each entry;
+severities 0, 1, 2, 4 and 8. Messages and stack traces may contain empty lines too, so only
+`!ENTRY`, `!SUBENTRY` and `!SESSION` end an entry, and `ErrorLogEntry` drops the empty lines at its
+end; it collects the lines in a `StringBuilder`, because a stack trace may have thousands of lines.
+A start without an entry writes no `!SESSION`, so `since: session` takes the start time of the
+system property `eclipse.startTime` (else `RuntimeMXBean.getStartTime()`); a time must be the whole
+argument, so that a zone like `Z` is rejected and not ignored. The numbers of the backups
+`.bak_<n>.log` run in a circle, so the tool reads the current file only; if a backup contains a
+`!SESSION` with this start time, the first line says, that earlier entries of the session are in
+the backups. `ErrorLogReport` shows at most 20 child entries of an entry and their number.
+`Files.readAllLines` reads the log, so that Equinox can still rename it at a rotation; an open
+`FileInputStream` lets `File.renameTo()` fail.
+
 **Working on the UI plug-in.** The RDi, in which you work, offers the tools of its installed UI
 plug-in. New tools or arguments of the workspace reach an agent only directly on the port of the
 test instance, e.g. with `claude -p --mcp-config`, until they are installed in that RDi and a new
 session of Claude Code starts.
+
+### Launch tools
+
+`start_launch`, `stop_launch` and `list_launches` implement `IMcpTool` directly, not
+`AbstractUiTool`: they run in the RDi, in which the developer works, and reject in a test instance.
+
+**Start without a dialog.** `ILaunchConfiguration.launch()` runs the checks of the delegates also
+without a build, and each of them asks in a dialog: errors in the projects of the launch (markers
+of `org.eclipse.jdt.core.problem` and, for an *Eclipse Application*, of
+`org.eclipse.pde.core.problem`), editors with unsaved changes, whether to clear the workspace
+(`clearws` with `askclear`), variables like `${string_prompt}` in the arguments and in the
+workspace (`location`), and the validation of the plug-ins of PDE. `StartChecks` and
+`LaunchProblems` check the first four before the start; `Launches.workspace()` never resolves a
+`location` with such a variable. Unsaved changes are those of the file buffers and of the editors
+of `IWorkbenchPage.getDirtyEditors()`, which `start_launch` reads in the UI thread: a change on a
+form page of the editor of a `MANIFEST.MF` leaves its file buffer unchanged, and RDi asks in the
+dialog *Save and Launch*. The projects are those of the internal
+`LaunchPluginValidator.getAffectedProjects(ILaunchConfiguration)` of `org.eclipse.pde.launching`
+(same signature in RDi 9.6 and 9.9; called by reflection through the bundle, so that the code needs
+no access to the internal package), else all plug-in and feature projects; a *JUnit Plug-in Test*
+checks all plug-ins of its configuration, too. A workspace, that another process has locked,
+cannot be used; `WorkspaceLock` tries the file lock on `.metadata/.lock`, that a running Eclipse
+holds, and releases it at once. `LaunchStarter` sets `automaticValidate=false` in a working copy, so
+that the validation of PDE opens no dialog, and launches a working copy of that copy: PDE saves the
+configuration, that it launches, e.g. when it sets a missing `SOURCE_PATH_PROVIDER`, and a copy of
+a copy saves into the outer copy in memory, never into the `.launch` file. A plug-in, that does not
+resolve, is missing in the test instance then.
+
+The launch runs in a job without a scheduling rule (`Job.create`), named after
+`Messages.Task_Starting_A`, which the server thread joins until the deadline of the call. RDi
+registers the launch before its checks, without a process. If `launch()` does not return in time, a
+dialog is open: the tool answers, and `LaunchStarter` keeps the name of the waiting start, until its
+job ends, so that `start_launch` rejects a new start, `list_launches` shows it and `stop_launch`
+names it. The job catches every `Throwable` of `launch()`, so that it never ends with an error. A
+launch without a process after `launch()` means a cancelled dialog. The port comes from the command
+line of the process (`TestInstance.ofCommandLine()`, also without `uiTools`), where JDT has resolved
+the variables of the VM arguments; before the start it is known only without variables. Without a
+port, `start_launch` checks, that the process has not ended. With a port, `PortProbe` sends a GET to
+`/mcp` every 0.5 s; any HTTP answer counts (`405`, `401`). The server starts in
+`IAgentBridgeStartup.earlyStartup()`, so the workbench is up then, but a dialog may be open, e.g.
+the sign-on of a restored editor: `start_launch` therefore asks a test instance with the UI tools
+with `ui_snapshot` (`maxNodes: 1`) for its modal shells and names them in its answer.
+
+`Identity` asks the instance at the port for `workspace_info`, reads the JSON after the line, that
+names the instance, and compares its `workspace` with the resolved attribute `location` of the
+configuration, canonically and without case. Its result is `SAME`, `OTHER` (another workspace, or
+the token is rejected), `NO_ANSWER` or `UNKNOWN` (a workspace is not known). A port, that answers
+before the start, belongs to another process; so does one, that answers with `OTHER` after the
+start - then the new launch has no server (`IAgentBridgePlugin` catches the `BindException`) and is
+terminated.
+
+**Clean end.** `StopDecision` decides, how `stop_launch` ends a launch. A launch with port and
+`uiTools`, without `force`, that is not suspended in the debugger and whose identity is `SAME`, gets
+`ui_close` directly at its instance (`ForwardingClient.send()`, not `Forwarding`, which rejects,
+while several instances run); with `UNKNOWN` it is terminated, so that the workbench of another
+instance is never closed. `UiCloseTool` reads the dirty editors and the dirty
+views, that are an `ISaveablePart` (the *Project Explorer* is one), in the UI thread; without any,
+it closes the open dialogs with `OpenDialogs`, then passes `IWorkbench.close()` with `asyncExec` and
+answers at once. `close()` asks nothing, but it waits in an event loop for running operations: with
+the connect of RSE, whose progress dialog *Progress Information* waits for the sign-on *Enter
+Password* (both modal children of the workbench window), it never returns, and the test instance
+runs on. `OpenDialogs` closes the modal shells with `Shell.close()`, the children before their
+parent: a JFace dialog answers the event `Close` with *Cancel*, but returns *OK*, if its shell is
+only disposed together with its parent. The cancelled connect ends, its progress dialog closes, and
+the process ends after 3 to 5 s, also with an open native dialog. Shells, that are not modal, e.g.
+the workbench windows and the hidden shells of E4, stay. An answer without error, or a connection,
+that breaks after sending (the server may stop before it answers), means waiting for
+`ILaunch.isTerminated()`; unsaved parts mean rejecting (`CloseResult.isUnsaved()` finds the start
+of its text also after the line of a forwarded result); any other outcome and the end of
+`timeoutSeconds` mean `ILaunch.terminate()`, with a reason in own words: the texts of the
+forwarding, e.g. *still starting?*, do not fit, after the instance answered `workspace_info`.
+`stop_launch` says, when the process still runs 10 s after `terminate()`. RDi 9.6 logs *The
+workspace will exit with unsaved changes in this session* (code 10035) at almost every end of the
+workbench, a terminated instance does not.
+
+**Hot code replace.** `HotCodeReplace` registers one `IJavaHotCodeReplaceListener`
+(`JDIDebugModel.addHotCodeReplaceListener`), when `start_launch` starts in debug mode or
+`list_launches` runs, and keeps the last result per debug target in a `WeakHashMap`; results within
+2 s belong to one replacement, e.g. obsolete methods and success, and each kind is named once. The
+events arrive before
+`get_problems` returns. A change of the hierarchy fails, and JDT opens its dialog in the RDi, that
+holds the debug launch. `Launches` reports a suspended thread of the debug targets.
 
 ### Tools
 
@@ -421,19 +528,28 @@ The tests in `eclipse/iAgentBridge UI JUnit` use no Eclipse types either. `Snaps
 `LocatorBuilderTest` and `MnemonicsTest` check the text of a snapshot from a model,
 `CommandLineTest` the command line of a test instance, `ForwardedResultTest` and `ForwardingTest`
 the result and the decisions of the forwarding, `ForwardingClientTest` the forwarding against a real
-`McpHttpServer` (image, wrong token, closed port, timeout and a call to itself), `UiArgumentsTest`,
+`McpHttpServer` (image, wrong token, closed port, timeout, a call to itself, a POST sent only once
+and the kinds of outcome), `UiArgumentsTest`,
 `ScreenshotFilesTest` and `ImageScalerTest` the arguments, the files and the scaling of the
 screenshots. For the actions `UiThreadTest` checks `UiThread.act()` with a thread of its own in
 place of the UI thread (an action, that ends, opens a dialog, runs too long, or never runs),
 `JournalTest` the journal and `PendingFailures`, `KeyParserTest`, `ItemPathTest`,
 `WaitConditionTest` and `LpexLinesTest` the keys, paths, conditions and the lines of `ui_lpex`,
 `AbstractActionToolTest` the flow of an action without a display (failures of earlier actions, a
-failing snapshot, the guard for the foreground), `UiToolsTest` single tools without a widget,
-`ForwardingClientTest`, that a POST is sent only once, and `UiMessagesTest`, that both languages
-have the keys of `Messages`. The widgets themselves, the events of the actions, the forwarding from
-the RDi, in which you work, and the screenshots are tested by hand with a test instance.
+failing snapshot, the guard for the foreground, an action or a wait, after which the display has
+ended), `UiToolsTest` single tools without a widget (among them the arguments of the launch tools,
+their rejection in a test instance and the error log of a file), and `UiMessagesTest`, that both
+languages have the keys of `Messages`. `ErrorLogTest` checks the parser and the report of the error
+log (sessions, child entries, empty lines, continuation lines, severities, filters, cuts, a long
+stack trace), `LaunchRulesTest` the checks before a start, the lock of a workspace, the decisions of
+`stop_launch` and the result of `ui_close`, `IdentityTest` `Identity` against a real
+`McpHttpServer`, `HotCodeReplaceTest` the text of the results of hot code replace. The widgets
+themselves, the events of the actions, the forwarding from the RDi, in which you work, the
+screenshots, and the start and end of launches with hot code replace are tested by hand with a test
+instance.
 `AbstractActionToolTest` and `UiToolsTest` lie in the package `de.tools400.iagentbridge.ui.tools` of
-the plug-in, because they call package visible methods of the tools.
+the plug-in, `HotCodeReplaceTest` in `de.tools400.iagentbridge.ui.launches`, because they call
+package visible methods.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the

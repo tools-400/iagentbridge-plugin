@@ -11,9 +11,10 @@ package de.tools400.iagentbridge.ui.forwarding;
 import java.util.Map;
 
 /**
- * A running test instance of RDi with the UI tools: the name of its launch
- * configuration, the port of its server and, if its command line sets it, its
- * token.
+ * An instance of RDi with iAgentBridge, started from the workspace, or a launch
+ * configuration for one: the name of the launch configuration, the port of its
+ * server, if the command line or the VM arguments set it, its token, and
+ * whether it executes the UI tools (a test instance).
  * <p>
  * The names of the system properties are those of the core plug-in
  * (ServerSettings), whose package is not exported.
@@ -38,11 +39,13 @@ public final class TestInstance {
     private final String name;
     private final Integer port;
     private final String token;
+    private final boolean uiTools;
 
-    TestInstance(String aName, Integer aPort, String aToken) {
+    private TestInstance(String aName, Integer aPort, String aToken, boolean aUiTools) {
         name = aName;
         port = aPort;
         token = aToken;
+        uiTools = aUiTools;
     }
 
     /**
@@ -54,11 +57,23 @@ public final class TestInstance {
      *         '-Diagentbridge.uiTools=true'
      */
     public static TestInstance fromCommandLine(String aName, String aCommandLine) {
+        TestInstance instance = ofCommandLine(aName, aCommandLine);
+        return instance.hasUiTools() ? instance : null;
+    }
+
+    /**
+     * Returns the instance, that a process with the command line runs, with or
+     * without the UI tools.
+     *
+     * @param aName - name of the launch configuration
+     * @param aCommandLine - command line of the process
+     * @return the instance; its port is <code>null</code>, if the command line
+     *         sets no valid port
+     */
+    public static TestInstance ofCommandLine(String aName, String aCommandLine) {
 
         Map<String, String> properties = CommandLine.systemProperties(aCommandLine);
-        if (!Boolean.TRUE.toString().equalsIgnoreCase(trim(properties.get(PROPERTY_UI_TOOLS)))) {
-            return null;
-        }
+        boolean uiTools = Boolean.TRUE.toString().equalsIgnoreCase(trim(properties.get(PROPERTY_UI_TOOLS)));
 
         Integer port = null;
         String portValue = trim(properties.get(PROPERTY_PORT));
@@ -78,7 +93,17 @@ public final class TestInstance {
             token = null;
         }
 
-        return new TestInstance(aName, port, token);
+        return new TestInstance(aName, port, token, uiTools);
+    }
+
+    /**
+     * Returns whether the instance executes the UI tools
+     * ('-Diagentbridge.uiTools=true').
+     *
+     * @return <code>true</code> for a test instance
+     */
+    public boolean hasUiTools() {
+        return uiTools;
     }
 
     public String getName() {

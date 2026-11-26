@@ -82,6 +82,19 @@ public final class ForwardingClient {
      *         the test instance could not be reached
      */
     public McpToolResult call(TestInstance anInstance, String aToken, String aToolName, JsonObject anArguments) {
+        return send(anInstance, aToken, aToolName, anArguments).getResult();
+    }
+
+    /**
+     * Calls a tool of a test instance and tells, how the call ended.
+     *
+     * @param anInstance - the test instance, with a port
+     * @param aToken - token of the test instance
+     * @param aToolName - name of the tool
+     * @param anArguments - arguments of the tool
+     * @return the kind of the outcome and the result
+     */
+    public Response send(TestInstance anInstance, String aToken, String aToolName, JsonObject anArguments) {
 
         JsonObject arguments = new JsonParser().parse(anArguments.toString()).getAsJsonObject();
         arguments.addProperty(ARGUMENT_FORWARDED, Boolean.TRUE);
@@ -121,34 +134,38 @@ public final class ForwardingClient {
 
             int status = connection.getResponseCode();
             if (status == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                return McpToolResult.error("The test instance " + anInstance.describe() //$NON-NLS-1$
-                    + " rejected the token (HTTP 401). Does its launch configuration set another token with -Diagentbridge.token?"); //$NON-NLS-1$
+                return new Response(Kind.REJECTED, McpToolResult.error("The test instance " + anInstance.describe() //$NON-NLS-1$
+                    + " rejected the token (HTTP 401). Does its launch configuration set another token with -Diagentbridge.token?")); //$NON-NLS-1$
             }
             if (status != HttpURLConnection.HTTP_OK) {
-                return McpToolResult.error("The test instance " + anInstance.describe() + " answered with HTTP " + status + ": " //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-                    + cut(read(connection.getErrorStream())));
+                return new Response(Kind.REJECTED, McpToolResult.error("The test instance " + anInstance.describe() + " answered with HTTP " //$NON-NLS-1$ //$NON-NLS-2$
+                    + status + ": " + cut(read(connection.getErrorStream())))); //$NON-NLS-1$
             }
 
             String body = read(connection.getInputStream());
             JsonElement response = new JsonParser().parse(body);
             if (!response.isJsonObject()) {
-                return McpToolResult.error("The test instance " + anInstance.describe() + " answered with no JSON object: " + cut(body)); //$NON-NLS-1$ //$NON-NLS-2$
+                return new Response(Kind.REJECTED,
+                    McpToolResult.error("The test instance " + anInstance.describe() + " answered with no JSON object: " + cut(body))); //$NON-NLS-1$ //$NON-NLS-2$
             }
 
-            return ForwardedResult.toToolResult(response.getAsJsonObject(), anInstance);
+            return new Response(Kind.ANSWERED, ForwardedResult.toToolResult(response.getAsJsonObject(), anInstance));
 
         } catch (ConnectException e) {
-            return notAccepting(anInstance);
+            return new Response(Kind.REFUSED, notAccepting(anInstance));
         } catch (SocketTimeoutException e) {
             if (isConnectTimeout(e)) {
-                return notAccepting(anInstance);
+                return new Response(Kind.REFUSED, notAccepting(anInstance));
             }
-            return McpToolResult.error("The test instance " + anInstance.describe() + " did not answer within " + readTimeoutMillis / 1000 //$NON-NLS-1$ //$NON-NLS-2$
-                + " s - stopped in the debugger? If " + port + " is the port of this RDi, correct -Diagentbridge.port of the launch configuration."); //$NON-NLS-1$ //$NON-NLS-2$
+            return new Response(Kind.TIMEOUT,
+                McpToolResult.error("The test instance " + anInstance.describe() + " did not answer within " //$NON-NLS-1$ //$NON-NLS-2$
+                    + readTimeoutMillis / 1000 + " s - stopped in the debugger? If " + port //$NON-NLS-1$
+                    + " is the port of this RDi, correct -Diagentbridge.port of the launch configuration.")); //$NON-NLS-1$
         } catch (IOException e) {
-            return McpToolResult.error("The call of the test instance " + anInstance.describe() + " failed: " + e); //$NON-NLS-1$ //$NON-NLS-2$
+            return new Response(Kind.BROKEN, McpToolResult.error("The call of the test instance " + anInstance.describe() + " failed: " + e)); //$NON-NLS-1$ //$NON-NLS-2$
         } catch (JsonParseException e) {
-            return McpToolResult.error("The test instance " + anInstance.describe() + " answered with invalid JSON: " + e.getMessage()); //$NON-NLS-1$ //$NON-NLS-2$
+            return new Response(Kind.REJECTED,
+                McpToolResult.error("The test instance " + anInstance.describe() + " answered with invalid JSON: " + e.getMessage())); //$NON-NLS-1$ //$NON-NLS-2$
         } finally {
             if (connection != null) {
                 connection.disconnect();
@@ -188,5 +205,50 @@ public final class ForwardingClient {
 
     private static String cut(String aText) {
         return aText.length() > MAX_ERROR_BODY ? aText.substring(0, MAX_ERROR_BODY) + "..." : aText; //$NON-NLS-1$
+    }
+
+    /**
+     * How a call of a test instance ended.
+     */
+    public enum Kind {
+
+        /** The test instance answered; its tool may have failed. */
+        ANSWERED,
+
+        /** No connection: nothing listens at the port, or not yet. */
+        REFUSED,
+
+        /** The connection broke after the call was sent, e.g. at a shutdown. */
+        BROKEN,
+
+        /** No answer within the time of the client. */
+        TIMEOUT,
+
+        /**
+         * The server rejected the call, e.g. the token, or answered no JSON.
+         */
+        REJECTED
+    }
+
+    /**
+     * The outcome of a call: its kind and the result.
+     */
+    public static final class Response {
+
+        private final Kind kind;
+        private final McpToolResult result;
+
+        Response(Kind aKind, McpToolResult aResult) {
+            kind = aKind;
+            result = aResult;
+        }
+
+        public Kind getKind() {
+            return kind;
+        }
+
+        public McpToolResult getResult() {
+            return result;
+        }
     }
 }

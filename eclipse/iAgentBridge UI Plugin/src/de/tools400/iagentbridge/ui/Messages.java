@@ -23,6 +23,7 @@ public class Messages extends NLS {
     public static String Label_Dialogs_background;
     public static String Label_Dialogs_foreground;
     public static String Note_Setting_is_forwarded;
+    public static String Task_Starting_A;
 
     static {
         NLS.initializeMessages(BUNDLE_NAME, Messages.class);

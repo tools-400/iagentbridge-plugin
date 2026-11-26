@@ -67,16 +67,29 @@ public final class Forwarding {
                 + " has no valid -Diagentbridge.port in its command line. Add it to the VM arguments of the launch configuration."); //$NON-NLS-1$
         }
 
-        String token = instance.getToken();
-        if (token == null) {
-            try {
-                token = TokenFile.read(properties);
-            } catch (IOException e) {
-                return McpToolResult.error("The token for the test instance " + instance.describe() + " could not be read: " + e.getMessage()); //$NON-NLS-1$ //$NON-NLS-2$
-            }
+        String token;
+        try {
+            token = token(instance, properties);
+        } catch (IOException e) {
+            return McpToolResult.error("The token for the test instance " + instance.describe() + " could not be read: " + e.getMessage()); //$NON-NLS-1$ //$NON-NLS-2$
         }
 
         return client.call(instance, token, aToolName, anArguments);
+    }
+
+    /**
+     * Returns the token of an instance: the one of its command line, or else
+     * the one of the token file.
+     *
+     * @param anInstance - the instance
+     * @param aProperties - system properties with 'user.home', for the token
+     *        file
+     * @return the token
+     * @throws IOException if the token file cannot be read
+     */
+    public static String token(TestInstance anInstance, Properties aProperties) throws IOException {
+        String token = anInstance.getToken();
+        return token != null ? token : TokenFile.read(aProperties);
     }
 
     private static String noTestInstance(List<String> aConfigurations) {

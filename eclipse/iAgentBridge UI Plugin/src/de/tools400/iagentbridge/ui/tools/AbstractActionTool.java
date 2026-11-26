@@ -10,6 +10,7 @@ package de.tools400.iagentbridge.ui.tools;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -301,6 +302,8 @@ public abstract class AbstractActionTool extends AbstractUiTool {
             }
         } catch (UiThreadBusyException e) {
             aText.append("\nNo snapshot: ").append(e.getMessage()).append('.'); //$NON-NLS-1$
+        } catch (RejectedExecutionException e) {
+            aText.append('\n').append(WORKBENCH_ENDED);
         } catch (Exception e) {
             // The action ran: its result counts, not the snapshot.
             aText.append("\nNo snapshot: ").append(e).append('.'); //$NON-NLS-1$
@@ -343,7 +346,11 @@ public abstract class AbstractActionTool extends AbstractUiTool {
         void end() {
             Runnable started = stop.getAndSet(ENDED);
             if (started != null && started != ENDED) {
-                ui.execute(started);
+                try {
+                    ui.execute(started);
+                } catch (RejectedExecutionException e) {
+                    // The display has ended, and the guard with it.
+                }
             }
         }
     }

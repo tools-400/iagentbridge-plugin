@@ -147,6 +147,46 @@ public class ForwardingClientTest {
     }
 
     /**
+     * The kind of the outcome of a call, so that stop_launch decides without
+     * comparing the texts of messages.
+     */
+    @Test
+    public void testSend_kinds() throws IOException {
+
+        start(new TestTool("ui_test", anArguments -> McpToolResult.error("UI thread busy for 10 s")));
+        ForwardingClient.Response answered = new ForwardingClient().send(instance(server.getPort()), TOKEN, "ui_test", new JsonObject());
+        assertEquals(ForwardingClient.Kind.ANSWERED, answered.getKind());
+        assertTrue(answered.getResult().getText().endsWith("\nUI thread busy for 10 s"));
+
+        ForwardingClient.Response rejected = new ForwardingClient().send(instance(server.getPort()), "wrong-token", "ui_test", new JsonObject());
+        assertEquals(ForwardingClient.Kind.REJECTED, rejected.getKind());
+        server.stop();
+        server = null;
+
+        int port;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            port = socket.getLocalPort();
+        }
+        assertEquals(ForwardingClient.Kind.REFUSED, new ForwardingClient().send(instance(port), TOKEN, "ui_test", new JsonObject()).getKind());
+
+        AtomicInteger requests = new AtomicInteger();
+        try (ServerSocket socket = new ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))) {
+            Thread acceptor = new Thread(() -> closeWithoutAnswer(socket, requests), "closeWithoutAnswer");
+            acceptor.setDaemon(true);
+            acceptor.start();
+            assertEquals(ForwardingClient.Kind.BROKEN,
+                new ForwardingClient(2000, 5000).send(instance(socket.getLocalPort()), TOKEN, "ui_close", new JsonObject()).getKind());
+        }
+
+        start(new TestTool("ui_test", anArguments -> {
+            sleep(2500);
+            return McpToolResult.success("late");
+        }));
+        assertEquals(ForwardingClient.Kind.TIMEOUT,
+            new ForwardingClient(2000, 1000).send(instance(server.getPort()), TOKEN, "ui_test", new JsonObject()).getKind());
+    }
+
+    /**
      * A server, that closes the connection without an answer, gets the call
      * only once. HttpURLConnection would send the POST again silently, which
      * would be a second click of an action.

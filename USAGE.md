@@ -5,7 +5,7 @@ the plug-in is for, its requirements and how to install it, see [README.md](READ
 
 ## Quick start
 
-1. Install the plug-in and restart RDi. The *Error Log* view shows the message
+1. Install the plug-in and restart RDi. The view *Error Log* shows the message
    `iAgentBridge server listening on http://127.0.0.1:39096/mcp, token: ...`.
 2. Open *Window > Preferences > iAgentBridge* and press *Copy* next to the command for Claude Code.
 3. Run the command in PowerShell. It registers the server in Claude Code for all your projects,
@@ -253,19 +253,35 @@ workspace location, server URL and the open Java projects with their locations a
 profile, e.g. `iSphere Clean Up Profile (Helios) (project settings)`. Use it to check, which RDi
 and workspace an agent talks to. It has no arguments.
 
-### UI tools
+### Tools of other plug-ins
+
+Other RDi plug-ins can add tools to the server. Install them like any other plug-in and restart
+RDi; the agent sees them in a new session, e.g. as `mcp__rdi096__format_rpg`.
+
+| Tool | Plug-in | Content |
+|---|---|---|
+| `format_rpg` | optional feature *iRPGFormatter iAgentBridge* of iRPGFormatter | formats RPG sources like *iFormat* of RDi, see the usage of iRPGFormatter |
+| `ifs_projects_compile` | optional feature *IFS Projects iAgentBridge* of IFS Projects | compiles a file of a local IFS project on the IBM i like *Build on IBM i*, see the usage of IFS Projects |
+| `ifs_projects_check_syntax` | optional feature *IFS Projects iAgentBridge* of IFS Projects | checks the syntax of an RPGLE or SQLRPGLE file of a local IFS project on the IBM i like *Check Syntax*, see the usage of IFS Projects |
+
+The message `iAgentBridge server listening on ...` in the view *Error Log* ends with the names of
+all tools, that the server offers. A tool of another plug-in, that fails to start, is left out;
+the view *Error Log* shows the reason.
+
+## UI tools
 
 For developers of RDi plug-ins: the optional feature *iAgentBridge UI* lets an agent read and
 operate the user interface of a **test instance** of RDi, that you started from the workspace, e.g.
 to check a new dialog: open it, fill in its fields, press its buttons and look at the result.
 Install the feature into the RDi, in which you work, and start the test instance with a launch
 configuration, that has the VM argument `-Diagentbridge.uiTools=true`, see [Test
-instances](#test-instances).
+instances](#test-instances). An agent can start and stop it itself, see [Start and stop the test
+instance](#start-and-stop-the-test-instance).
 
 The tools never read or change the user interface of the RDi, in which you work. Its server offers
-them, but forwards every call to the running test instance; the test instance reads its user
-interface and answers. So Claude Code needs only the entry of your RDi, e.g. `rdi096`, and a
-restart of the test instance needs no reconnect. The first line of the answer names the test
+them, but forwards every call to the running test instance - except the calls, that start and stop
+it -; the test instance reads its user interface and answers. So Claude Code needs only the entry
+of your RDi, e.g. `rdi096`, and a restart of the test instance needs no reconnect. The first line of the answer names the test
 instance.
 
 **ui_snapshot** returns the user interface as indented text: first the workbench (active shell,
@@ -350,11 +366,11 @@ no active shell; then the deepest visible shell counts as active, modal shells f
 | Error | Meaning |
 |---|---|
 | `No test instance with the UI tools is running. ...` | start a test instance; the message names the launch configurations with `-Diagentbridge.uiTools=true` |
-| `Several test instances with the UI tools are running: ...` | stop all but one |
+| `Several test instances with the UI tools are running: ...` | stop all but one, e.g. with `stop_launch` |
 | `... does not accept connections yet - still starting?` | the test instance is still starting, or its server is not running |
 | `... did not answer within 30 s - stopped in the debugger? ...` | the test instance stops at a breakpoint, or the port of its launch configuration is the port of the RDi, in which you work |
 | `... rejected the token (HTTP 401) ...` | the launch configuration sets another token with `-Diagentbridge.token` |
-| `UI thread busy for 10 s - ...` | a long operation or a native dialog blocks the user interface of the test instance |
+| `UI thread busy for 10 s - ...` | a long operation, a thread stopped in the debugger or a native dialog blocks the user interface of the test instance |
 | `Ref w17 is unknown or outdated, take a new snapshot.` | the widget does not exist any more |
 | `Ref w17 now shows "..." instead of "..." - its viewer was refreshed. ...` | the viewer reuses its rows or items after a refresh; take a new snapshot |
 | `The shell "..." is blocked by the modal dialog "..." ...` | operate or close the dialog first |
@@ -366,20 +382,76 @@ no active shell; then the deepest visible shell counts as active, modal shells f
 | `A listener of the action failed: ...` | code of the test instance threw an exception during the action |
 | `The command '...' is not enabled in the current state of the workbench. ...` | the command has no enabled handler now, see above |
 
-### Tools of other plug-ins
+### Start and stop the test instance
 
-Other RDi plug-ins can add tools to the server. Install them like any other plug-in and restart
-RDi; the agent sees them in a new session, e.g. as `mcp__rdi096__format_rpg`.
+Three tools run in the RDi, in which you work: they start and stop its launch configurations of the
+types *Eclipse Application* and *JUnit Plug-in Test*, without a build and without a dialog. Two more
+tools run in the test instance, like the other UI tools.
 
-| Tool | Plug-in | Content |
+| Tool | Arguments | Content |
 |---|---|---|
-| `format_rpg` | optional feature *iRPGFormatter iAgentBridge* of iRPGFormatter | formats RPG sources like *iFormat* of RDi, see the usage of iRPGFormatter |
-| `ifs_projects_compile` | optional feature *IFS Projects iAgentBridge* of IFS Projects | compiles a file of a local IFS project on the IBM i like *Build on IBM i*, see the usage of IFS Projects |
-| `ifs_projects_check_syntax` | optional feature *IFS Projects iAgentBridge* of IFS Projects | checks the syntax of an RPGLE or SQLRPGLE file of a local IFS project on the IBM i like *Check Syntax*, see the usage of IFS Projects |
+| `list_launches` | – | the running launches of the two types with type, mode, port of iAgentBridge, *UI tools* and start time, in debug mode also *stopped in the debugger* and the last result of hot code replace; a start, that still waits for a dialog of RDi; the launch configurations, that `start_launch` can start, test instances with the UI tools marked |
+| `start_launch` | `name`, `mode` (`run` or `debug`, default `run`), `timeoutSeconds` (180, at most 600) | starts the launch configuration `name`, e.g. `iAgentBridge (de)`, as it is saved. With `-Diagentbridge.port` in its VM arguments (also with a variable) it waits, until that port answers, checks, that the instance at the port has the workspace of the launch configuration, and names a modal dialog, that the test instance shows, e.g. the sign-on to the IBM i, which you answer yourself; without the port it checks, that the process runs. The time counts from the call |
+| `stop_launch` | `name` (default: the only running test instance with the UI tools), `force` (false), `timeoutSeconds` (60, at most 600) | a test instance with the UI tools closes its workbench with `ui_close`, and the tool waits for its end; with unsaved changes it rejects and names them. Everything else ends with *Terminate*: without the UI tools, with `force: true`, stopped in the debugger, when its server does not answer or its port belongs to another process, and after `timeoutSeconds` |
+| `ui_close` | – | in the test instance: closes its workbench without a question. Open dialogs, e.g. the sign-on to the IBM i, it closes first like with *Cancel*. With unsaved changes in an editor or a view it rejects and names them. `stop_launch` calls it and waits for the end |
+| `ui_error_log` | `since` (`session` or a time like `2026-11-26T08:00:00`), `severity` (`error`, `warning` or `info`, default `warning`), `maxEntries` (20, at most 100) | in the test instance: the newest entries of its error log (`.metadata/.log`) since its start or since the time in the time zone of the computer, with their child entries (at most 20 per entry) and stack traces (at most 30 lines; messages at most 2000 characters), e.g. exceptions, that the user interface does not show. It answers also, while the UI thread is busy. It reads the current log only; the first line says, when earlier entries of the session are in a backup `.bak_*.log`. Failures of earlier actions come first, like with the other UI tools |
 
-The message `iAgentBridge server listening on ...` in the *Error Log* view ends with the names of
-all tools, that the server offers. A tool of another plug-in, that fails to start, is left out;
-the *Error Log* view shows the reason.
+Before the start, `start_launch` checks, what RDi would ask about in a dialog, and rejects then with
+the reason:
+
+* the launch configuration asks for a value at the start (`${string_prompt}`, `${password_prompt}`,
+  ... in its arguments or its workspace) or whether its workspace shall be cleared;
+* another process, e.g. a running instance, has locked its workspace;
+* projects of the launch - the plug-in projects of the launch configuration and the feature
+  projects - have errors: compile errors and, for an *Eclipse Application*, errors of PDE, e.g. a
+  missing bundle in a `MANIFEST.MF`. `get_problems` builds the projects and shows the errors;
+* files of these projects have unsaved changes in an editor, also on a form page, e.g. of the editor
+  of a `MANIFEST.MF`;
+* it runs already, another test instance with the UI tools runs (the UI tools work with one only),
+  or its port is in use by another process;
+* an earlier start still waits for an answer in a dialog of RDi.
+
+PDE does not validate the plug-ins at the start: a plug-in, that does not resolve, is missing in the
+test instance without a dialog. While `start_launch` or `stop_launch` waits, the server answers no
+other call.
+
+**After a change** of a plug-in of the test instance: `get_problems` builds it, `stop_launch` and
+`start_launch` restart the test instance, then the UI tools check the change. In debug mode
+(`mode: debug`), hot code replace takes changed method bodies over at the build, without a restart;
+`list_launches` shows the result with its time, e.g. `hot code replace: succeeded at 10:15:02`. A
+change, that the virtual machine cannot replace, e.g. a new super class or interface, fails, and
+JDT shows the dialog *Hot Code Replace Failed* in the RDi, in which you work: close it and restart
+the test instance. *Window > Preferences > Java > Debug*, group *Hot Code Replace*, turns this
+dialog and the one about obsolete methods off: *Show error when hot code replace fails*, *Show error when
+hot code replace is not supported*, *Show error when obsolete methods remain after hot code
+replace*.
+
+A thread of the test instance, that stops at a breakpoint, can block the UI tools; `list_launches`
+shows *stopped in the debugger*, and `stop_launch` ends it with *Terminate*. In run mode RDi asks in
+a dialog, whether to debug instead, if the workspace contains breakpoints and *Window > Preferences
+> Run/Debug > Launching > Launch in debug mode when workspace contains breakpoints* is set to
+*Prompt*.
+
+At its start RDi 9.6 usually logs, that the workspace exited with unsaved changes in the previous
+session, also after `stop_launch` closed it cleanly; `ui_error_log` shows it as a warning, but it is
+no error.
+
+| Error | Meaning |
+|---|---|
+| `... is a launch configuration of the type ...` | `start_launch` starts only *Eclipse Applications* and *JUnit Plug-in Tests* |
+| `... asks for a value at the start ...` or `... asks, whether its workspace shall be cleared ...` | start it by hand, or turn the question off in the launch configuration |
+| `Projects of the launch have errors, ...` | fix them; `get_problems` shows them |
+| `Files of the launch have unsaved changes in an editor, ...` | save them in the RDi, in which you work |
+| `... runs already. ...` | stop the running launch with `stop_launch` first |
+| `Port 39196 of ... is in use by another process. ...` | another program, e.g. a test instance started by hand with another workspace, has the port; end it |
+| `... uses the workspace ..., which another process has locked. ...` | another instance runs with this workspace, e.g. a JUnit Plug-in Test with the same workspace; end it |
+| `RDi is probably waiting for an answer in a dialog: ...`, `A start of ... is still waiting ...` or `The start of ... still waits ...` | RDi shows a dialog for the start; answer it in the RDi, in which you work |
+| `RDi did not start ... (a dialog cancelled?).` | a dialog for the start was cancelled |
+| `The process of ... ended with exit code ...` | the launch ended during its start; the view *Console* shows its output |
+| `... runs, but port ... did not answer within ...` | its server is turned off in its workspace (`iagentbridge.serverEnabled`), or it starts slowly; the launch keeps running |
+| `Unsaved changes in the test instance: ...` | save or revert them in the test instance, or use `force: true` |
+| `Several test instances with the UI tools run: ... Give 'name'.` | `stop_launch` needs `name` |
+| `... Its process still runs 10 s later; ...` | *Terminate* did not end the process; the view *Debug* of RDi shows it |
 
 ## Preferences
 
@@ -439,7 +511,7 @@ if the plug-in is part of the launch configuration. The launch configurations of
 the ports `39196`, `39198` and `39199` for RDi 9.6, 9.8 and 9.9. In other launch configurations
 set `-Diagentbridge.port=...`, `-Diagentbridge.serverEnabled=false` or remove the plug-in, e.g. in
 a *JUnit Plug-in Test*, that `run_tests` starts. Otherwise the instance, that starts first, gets
-the port, and the other one shows the error on the preference page and in the *Error Log* view.
+the port, and the other one shows the error on the preference page and in the view *Error Log*.
 
 The launch configurations of iAgentBridge also set `-Diagentbridge.uiTools=true`, so that the test
 instance executes the [UI tools](#ui-tools), and
@@ -447,7 +519,9 @@ instance executes the [UI tools](#ui-tools), and
 does not suggest the name of the RDi, in which you work. The test instance needs no entry in Claude
 Code. The RDi, in which you work, finds it among its running launches of the type *Eclipse
 Application*: by `-Diagentbridge.uiTools=true` in the command line of the process, which also
-gives the port and, if set, the token. Only one such test instance may run at a time.
+gives the port and, if set, the token. Only one such test instance may run at a time. An agent
+starts and stops it with `start_launch` and `stop_launch`, see [Start and stop the test
+instance](#start-and-stop-the-test-instance).
 
 ## Security
 
@@ -460,3 +534,9 @@ gives the port and, if set, the token. Only one such test instance may run at a 
   sign on to the IBM i in the test instance yourself. A click in the test instance can run commands
   on the IBM i like a click of yours: give the test instance a workspace of its own and connections
   to test systems and test libraries only.
+* `start_launch` starts only launch configurations of the types *Eclipse Application* and *JUnit
+  Plug-in Test* of the workspace, no other programs, and `stop_launch` ends only these. A test
+  instance closes without saving; with unsaved changes `ui_close` rejects, and `stop_launch` too,
+  unless `force` is `true`.
+* `ui_error_log` returns the error log of the test instance, which may contain paths, host names
+  and user profiles.

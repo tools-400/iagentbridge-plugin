@@ -10,6 +10,7 @@ package de.tools400.iagentbridge.ui.tools;
 
 import java.util.Locale;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.eclipse.core.runtime.jobs.Job;
@@ -108,6 +109,8 @@ public class UiWaitTool extends AbstractUiTool {
             met = await(condition, aDisplay, anUi, wait, total);
         } catch (UiThreadBusyException e) {
             return McpToolResult.error(takePendingFailures() + "Waiting for " + condition.describe() + ": " + e.getMessage() + "."); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+        } catch (RejectedExecutionException e) {
+            return McpToolResult.error(takePendingFailures() + "Waiting for " + condition.describe() + " stopped. " + WORKBENCH_ENDED); //$NON-NLS-1$ //$NON-NLS-2$
         } catch (IllegalArgumentException e) {
             return McpToolResult.error(takePendingFailures() + e.getMessage());
         }
@@ -125,6 +128,8 @@ public class UiWaitTool extends AbstractUiTool {
             text.append('\n').append(snapshot.write(Snapshots.DEFAULT_MAX_NODES, false));
         } catch (UiThreadBusyException e) {
             text.append("\nNo snapshot: ").append(e.getMessage()).append('.'); //$NON-NLS-1$
+        } catch (RejectedExecutionException e) {
+            text.append('\n').append(WORKBENCH_ENDED);
         } catch (Exception e) {
             // The wait is over: its result counts, not the snapshot.
             text.append("\nNo snapshot: ").append(e).append('.'); //$NON-NLS-1$
