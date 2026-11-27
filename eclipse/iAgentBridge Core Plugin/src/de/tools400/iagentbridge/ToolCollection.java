@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 import com.google.gson.JsonElement;
@@ -25,6 +26,10 @@ import de.tools400.iagentbridge.mcp.IMcpTool;
  * name is invalid or already taken, is left out and an error is recorded, so
  * that a faulty tool does not break the server.
  * <p>
+ * A plug-in, that contributes tools, may also contribute instructions for the
+ * AI agent, e.g. the workflow of its tools. The server returns them after its
+ * own instructions.
+ * <p>
  * The class has no Eclipse dependencies, so that it can be tested outside of
  * RDi.
  */
@@ -33,13 +38,18 @@ public final class ToolCollection {
     /** Name of a tool: letters, digits, '_' and '-', at most 64 characters */
     private static final Pattern TOOL_NAME = Pattern.compile("[A-Za-z0-9_-]{1,64}"); //$NON-NLS-1$
 
+    /** Separates the instructions of the plug-ins: an empty line */
+    private static final String INSTRUCTIONS_SEPARATOR = "\n\n"; //$NON-NLS-1$
+
     private final Map<String, IMcpTool> tools;
     private final Map<String, String> contributors;
+    private final Map<String, String> instructions;
     private final List<ToolError> errors;
 
     public ToolCollection() {
         tools = new LinkedHashMap<String, IMcpTool>();
         contributors = new LinkedHashMap<String, String>();
+        instructions = new TreeMap<String, String>();
         errors = new ArrayList<ToolError>();
     }
 
@@ -110,6 +120,62 @@ public final class ToolCollection {
      */
     public List<String> getNames() {
         return new ArrayList<String>(tools.keySet());
+    }
+
+    /**
+     * Adds the instructions of a plug-in for the AI agent. Call it after the
+     * tools of the plug-in were added. The instructions are left out and an
+     * error is recorded, if none of the tools of the plug-in was added - they
+     * would describe tools, that the server does not have -, if they are empty,
+     * or if the plug-in added instructions already. Line ends become '\n', and
+     * white space at the start and the end is removed, so that the text does
+     * not depend on the line ends of the working tree, from which the plug-in
+     * was built.
+     *
+     * @param aText - the instructions
+     * @param aContributor - the ID of the plug-in, that contributes them
+     * @return <code>true</code>, if the instructions were added
+     */
+    public boolean addInstructions(String aText, String aContributor) {
+
+        if (instructions.containsKey(aContributor)) {
+            addError("Further instructions of plug-in " + aContributor //$NON-NLS-1$
+                + " are left out, because a plug-in contributes instructions once.", null); //$NON-NLS-1$
+            return false;
+        }
+
+        if (!contributors.containsValue(aContributor)) {
+            addError("The instructions of plug-in " + aContributor + " are left out, because none of its tools was added.", null); //$NON-NLS-1$ //$NON-NLS-2$
+            return false;
+        }
+
+        String text = aText == null ? "" : aText.replace("\r\n", "\n").replace('\r', '\n').trim(); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+        if (text.isEmpty()) {
+            addError("The instructions of plug-in " + aContributor + " are left out, because they are empty.", null); //$NON-NLS-1$ //$NON-NLS-2$
+            return false;
+        }
+
+        instructions.put(aContributor, text);
+
+        return true;
+    }
+
+    /**
+     * Returns the instructions for the AI agent: the instructions of the server
+     * and after them the instructions of the plug-ins, ordered by the IDs of
+     * the plug-ins, each after an empty line.
+     *
+     * @param aServerInstructions - the instructions of the server
+     * @return instructions
+     */
+    public String getInstructions(String aServerInstructions) {
+
+        StringBuilder text = new StringBuilder(aServerInstructions);
+        for (String contribution : instructions.values()) {
+            text.append(INSTRUCTIONS_SEPARATOR).append(contribution);
+        }
+
+        return text.toString();
     }
 
     /**

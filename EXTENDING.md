@@ -1,7 +1,8 @@
 # Extending iAgentBridge
 
-How to write a plug-in that adds a tool to the MCP server of iAgentBridge. For the use of the
-plug-in, see [USAGE.md](USAGE.md), for its internals [DEVELOPMENT.md](DEVELOPMENT.md).
+How to write a plug-in that adds a tool, and instructions for the AI agent, to the MCP server of
+iAgentBridge. For the use of the plug-in, see [USAGE.md](USAGE.md), for its internals
+[DEVELOPMENT.md](DEVELOPMENT.md).
 
 An extension plug-in is an ordinary Eclipse plug-in, that requires
 `de.tools400.iagentbridge.core.plugin` and contributes to its extension point. It is shipped as a
@@ -13,7 +14,7 @@ implementation is the plug-in `iRPGFormatter iAgentBridge Plugin` of the reposit
 
 | Extension point | Interface | Purpose |
 |---|---|---|
-| `de.tools400.iagentbridge.core.plugin.tools` | `IMcpTool` | Adds a tool to the MCP server. The client lists it with `tools/list` and calls it with `tools/call`, like the tools of iAgentBridge. |
+| `de.tools400.iagentbridge.core.plugin.tools` | `IMcpTool` | Adds a tool to the MCP server. The client lists it with `tools/list` and calls it with `tools/call`, like the tools of iAgentBridge. Since 1.1.0 also instructions for the AI agent, see [The extension](#2-the-extension). |
 
 The API is in the exported package `de.tools400.iagentbridge.mcp`:
 
@@ -69,6 +70,25 @@ the API of Gson 2.2.4, e.g. `new JsonParser().parse(...)`.
 
 The `id` identifies the contribution. The name, with which the client calls the tool, is returned
 by `IMcpTool.getName()`. The class needs a public constructor without parameters.
+
+Since 1.1.0 the extension may also name a file with instructions for the AI agent, e.g. the
+workflow of the tools of the plug-in:
+
+```xml
+<extension point="de.tools400.iagentbridge.core.plugin.tools">
+   <tool
+         id="com.example.iagentbridge.mytool"
+         class="com.example.iagentbridge.mytool.MyTool">
+   </tool>
+   <instructions file="instructions/tools.txt"/>
+</extension>
+```
+
+The file is a text file of the plug-in itself, not of a fragment, in UTF-8 and in English; add its
+folder to `bin.includes` of the `build.properties`. Line ends become `\n`, white space at the start
+and the end is removed. The server returns the instructions in the result of `initialize`: first its
+own, then those of the plug-ins, ordered by the IDs of the plug-ins, each after an empty line. An
+iAgentBridge before 1.1.0 ignores the element. See *Instructions* in [Rules](#4-rules).
 
 ### 3. The tool
 
@@ -149,10 +169,20 @@ not for a user. The agent sees the text of the result; JSON is easy for it to re
   e.g. after *New Token*, the waiting thread is
   interrupted: the method cancels the job and throws the `InterruptedException` without waiting for
   the end of the job. Requires `bundle-version="[1.1.0,2.0.0)"`.
-* **Life cycle**: the server creates the tools, when it starts - when RDi starts, and when the
-  preference page restarts it. Changes to the installed tools need a restart of RDi.
+* **Instructions** tell the agent, what no single tool tells: the order of the calls, when to ask
+  the user, what to leave alone. What a tool does belongs into its description. A plug-in has one
+  file of instructions; it counts only, if at least one tool of the plug-in was added. Keep the
+  text short and put the important part first: MCP clients may cut it. Claude Code reads the first
+  4096 characters of all instructions of a server, before version 2.1.296 the first 2048, and marks
+  the cut with `… [truncated]`. The instructions of iAgentBridge have at most 1000 characters,
+  those of its UI tools at most 3000. The client reads the instructions, when a session starts: a
+  changed text reaches the agent in a new session, not in a running one.
+* **Life cycle**: the server creates the tools and reads the instructions, when it starts - when
+  RDi starts, and when the preference page restarts it. Changes to the installed tools need a
+  restart of RDi.
 * **Errors**: a tool, that cannot be created, that fails to describe itself or whose name is
-  invalid or taken, is left out. The view *Error Log* shows the reason. The message
+  invalid or taken, is left out; so is a file of instructions, that is missing, empty or cannot be
+  read. The view *Error Log* shows the reason. The message
   `iAgentBridge server listening on ...` lists the names of the tools, that the server offers.
 * **Files of the workspace**: refresh a file before you read it, e.g. with
   `IFile.refreshLocal()`; the agent changes files outside of RDi.
@@ -162,7 +192,8 @@ not for a user. The agent sees the text of the result; JSON is easy for it to re
 Put the tests into a **fragment of your own plug-in**. The logic of a tool, that needs no Eclipse
 types, e.g. the text of its result, can be tested with JUnit alone. The reference implementation
 tests the JSON of its result in `FormatRpgReportTest` of the fragment `iRPGFormatter iAgentBridge
-JUnit`.
+JUnit`. A test can also keep the file of instructions within its budget, like `UiInstructionsTest`
+of the UI tools of iAgentBridge.
 
 ### 6. Shipping it
 

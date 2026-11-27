@@ -42,7 +42,12 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
     /** Name of the server returned to the MCP client */
     public static final String SERVER_NAME = "iagentbridge"; //$NON-NLS-1$
 
-    private static final String INSTRUCTIONS = "Tools of a running IBM Rational Developer for i (RDi, Eclipse) instance. " //$NON-NLS-1$
+    /**
+     * Instructions of the server for the AI agent; the instructions, that other
+     * plug-ins contribute, follow them. Budget: 1000 characters, see
+     * EXTENDING.md.
+     */
+    public static final String INSTRUCTIONS = "Tools of a running IBM Rational Developer for i (RDi, Eclipse) instance. " //$NON-NLS-1$
         + "clean_up runs 'Source > Clean Up' with the clean-up profile of RDi on Java files of the RDi workspace. " //$NON-NLS-1$
         + "get_problems builds projects of the RDi workspace and returns their compile errors and warnings. " //$NON-NLS-1$
         + "import_projects imports existing projects, e.g. of a Git working copy, into the RDi workspace. " //$NON-NLS-1$
@@ -128,8 +133,8 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
             String url = "http://127.0.0.1:" + port + McpHttpServer.PATH; //$NON-NLS-1$
 
             ToolCollection tools = createTools(url);
-            McpDispatcher dispatcher = new McpDispatcher(SERVER_NAME, getBundle().getVersion().toString(), INSTRUCTIONS, tools.getTools(),
-                this::logError);
+            McpDispatcher dispatcher = new McpDispatcher(SERVER_NAME, getBundle().getVersion().toString(), tools.getInstructions(INSTRUCTIONS),
+                tools.getTools(), this::logError);
 
             McpHttpServer httpServer = new McpHttpServer(dispatcher, settings.getToken());
             httpServer.start(port);
@@ -149,9 +154,9 @@ public class IAgentBridgePlugin extends AbstractUIPlugin {
     }
 
     /**
-     * Creates the tools of the server: the tools of iAgentBridge and the tools,
-     * that other plug-ins contribute. The errors of the tools, that are left
-     * out, are written to the error log.
+     * Creates the tools of the server: the tools of iAgentBridge and the tools
+     * and instructions, that other plug-ins contribute. The errors of the tools
+     * and instructions, that are left out, are written to the error log.
      */
     private ToolCollection createTools(String aUrl) {
 

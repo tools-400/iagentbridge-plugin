@@ -130,6 +130,118 @@ public class ToolCollectionTest {
         assertSame(cause, tools.getErrors().get(0).getCause());
     }
 
+    @Test
+    public void testGetInstructions_withoutContributions_serverInstructions() {
+
+        ToolCollection tools = new ToolCollection();
+        tools.add(new TestTool("clean_up"), "core");
+
+        assertEquals("Server.", tools.getInstructions("Server."));
+        assertTrue(tools.getErrors().isEmpty());
+    }
+
+    @Test
+    public void testGetInstructions_contribution_afterBlankLine() {
+
+        ToolCollection tools = new ToolCollection();
+        tools.add(new TestTool("ui_click"), "com.example.ui");
+
+        assertTrue(tools.addInstructions("UI tools: a workflow.", "com.example.ui"));
+
+        assertEquals("Server.\n\nUI tools: a workflow.", tools.getInstructions("Server."));
+        assertTrue(tools.getErrors().isEmpty());
+    }
+
+    @Test
+    public void testGetInstructions_orderedByPlugin() {
+
+        ToolCollection tools = new ToolCollection();
+        tools.add(new TestTool("z_tool"), "com.example.z");
+        tools.add(new TestTool("a_tool"), "com.example.a");
+
+        tools.addInstructions("Z.", "com.example.z");
+        tools.addInstructions("A.", "com.example.a");
+
+        assertEquals("Server.\n\nA.\n\nZ.", tools.getInstructions("Server."));
+    }
+
+    @Test
+    public void testAddInstructions_lineEndingsAndOuterSpace() {
+
+        ToolCollection tools = new ToolCollection();
+        tools.add(new TestTool("ui_click"), "com.example.ui");
+
+        tools.addInstructions("\r\n  Line one.\r\nLine two.\rLine three.\r\n\r\n", "com.example.ui");
+
+        assertEquals("Server.\n\nLine one.\nLine two.\nLine three.", tools.getInstructions("Server."));
+    }
+
+    @Test
+    public void testAddInstructions_crlfAndLf_sameText() {
+
+        ToolCollection crlf = new ToolCollection();
+        crlf.add(new TestTool("ui_click"), "com.example.ui");
+        crlf.addInstructions("One.\r\nTwo.\r\n", "com.example.ui");
+
+        ToolCollection lf = new ToolCollection();
+        lf.add(new TestTool("ui_click"), "com.example.ui");
+        lf.addInstructions("One.\nTwo.\n", "com.example.ui");
+
+        assertEquals("Server.\n\nOne.\nTwo.", crlf.getInstructions("Server."));
+        assertEquals(lf.getInstructions("Server."), crlf.getInstructions("Server."));
+    }
+
+    @Test
+    public void testAddInstructions_empty_leftOut() {
+
+        ToolCollection tools = new ToolCollection();
+        tools.add(new TestTool("ui_click"), "com.example.ui");
+
+        assertFalse(tools.addInstructions(" \r\n ", "com.example.ui"));
+
+        assertEquals("Server.", tools.getInstructions("Server."));
+        assertError(tools, "The instructions of plug-in com.example.ui are left out, because they are empty.");
+    }
+
+    @Test
+    public void testAddInstructions_pluginWithoutTool_leftOut() {
+
+        ToolCollection tools = new ToolCollection();
+        tools.add(new TestTool("ui_click"), "com.example.ui");
+
+        assertFalse(tools.addInstructions("Other.", "com.example.other"));
+
+        assertEquals("Server.", tools.getInstructions("Server."));
+        assertError(tools, "The instructions of plug-in com.example.other are left out, because none of its tools was added.");
+    }
+
+    @Test
+    public void testAddInstructions_pluginWithToolLeftOut_leftOut() {
+
+        ToolCollection tools = new ToolCollection();
+        tools.add(new TestTool("bad name"), "com.example.ui");
+
+        assertFalse(tools.addInstructions("UI.", "com.example.ui"));
+
+        assertEquals("Server.", tools.getInstructions("Server."));
+        assertEquals(2, tools.getErrors().size());
+        assertEquals("The instructions of plug-in com.example.ui are left out, because none of its tools was added.",
+            tools.getErrors().get(1).getMessage());
+    }
+
+    @Test
+    public void testAddInstructions_second_leftOut_firstWins() {
+
+        ToolCollection tools = new ToolCollection();
+        tools.add(new TestTool("ui_click"), "com.example.ui");
+
+        assertTrue(tools.addInstructions("First.", "com.example.ui"));
+        assertFalse(tools.addInstructions("Second.", "com.example.ui"));
+
+        assertEquals("Server.\n\nFirst.", tools.getInstructions("Server."));
+        assertError(tools, "Further instructions of plug-in com.example.ui are left out, because a plug-in contributes instructions once.");
+    }
+
     private static void assertInvalidName(String aName) {
         assertLeftOut(new TestTool(aName),
             "A tool of plug-in x is left out: the name '" + aName + "' is invalid. A name consists of 1 to 64 letters, digits, '_' and '-'.");

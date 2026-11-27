@@ -6,7 +6,7 @@
          <meta.schema plugin="de.tools400.iagentbridge.core.plugin" id="tools" name="MCP Tools"/>
       </appInfo>
       <documentation>
-         Contributes a tool to the MCP server of iAgentBridge. The server creates the tools, when it starts, and lists them to the MCP client together with its own tools. A tool, that cannot be created, that fails to describe itself or whose name is invalid or already taken, is left out and reported in the Error Log.
+         Contributes a tool to the MCP server of iAgentBridge. The server creates the tools, when it starts, and lists them to the MCP client together with its own tools. A tool, that cannot be created, that fails to describe itself or whose name is invalid or already taken, is left out and reported in the Error Log. Since 1.1.0 a plug-in may also contribute instructions for the AI agent, e.g. the workflow of its tools.
       </documentation>
    </annotation>
 
@@ -19,6 +19,7 @@
       <complexType>
          <sequence>
             <element ref="tool" minOccurs="1" maxOccurs="unbounded"/>
+            <element ref="instructions" minOccurs="0" maxOccurs="1"/>
          </sequence>
          <attribute name="point" type="string" use="required">
             <annotation>
@@ -66,6 +67,26 @@
       </complexType>
    </element>
 
+   <element name="instructions">
+      <annotation>
+         <documentation>
+            Since 1.1.0. Instructions for the AI agent, e.g. the workflow of the tools of the plug-in. The server returns them in the result of 'initialize' after its own instructions, ordered by the IDs of the plug-ins, each after an empty line. They count only, if at least one tool of the plug-in was added, and once per plug-in; instructions, that are left out, are reported in the Error Log. MCP clients may cut long instructions: Claude Code reads the first 4096 characters of all instructions of a server, before version 2.1.296 the first 2048. Keep them short and put the important part first. A client reads them, when it connects; a changed text reaches the agent in a new session.
+         </documentation>
+      </annotation>
+      <complexType>
+         <attribute name="file" type="string" use="required">
+            <annotation>
+               <documentation>
+                  Path of a text file in the plug-in itself, not in a fragment, e.g. instructions/tools.txt, encoded in UTF-8, in English. Line ends become '\n', white space at the start and the end is removed. Add the file to bin.includes of the build.properties.
+               </documentation>
+               <appInfo>
+                  <meta.attribute kind="resource"/>
+               </appInfo>
+            </annotation>
+         </attribute>
+      </complexType>
+   </element>
+
    <annotation>
       <appInfo>
          <meta.section type="since"/>
@@ -85,6 +106,7 @@
          id=&quot;com.example.iagentbridge.mytool&quot;
          class=&quot;com.example.iagentbridge.MyTool&quot;&gt;
    &lt;/tool&gt;
+   &lt;instructions file=&quot;instructions/tools.txt&quot;/&gt;
 &lt;/extension&gt;
       </documentation>
    </annotation>
