@@ -27,6 +27,8 @@ import org.eclipse.core.runtime.Platform;
 import org.eclipse.debug.core.ILaunchConfiguration;
 import org.osgi.framework.Bundle;
 
+import de.tools400.iagentbridge.ui.model.Hints;
+
 /**
  * Checks, what RDi asks about in a dialog, before it launches: errors in the
  * projects of the launch and files of them with unsaved changes in a file
@@ -87,11 +89,21 @@ public final class LaunchProblems {
             }
         }
         if (!unsaved.isEmpty()) {
-            return "Files of the launch have unsaved changes in an editor, about which RDi would ask in a dialog: " //$NON-NLS-1$
-                + names(new ArrayList<String>(unsaved)) + ". Save them first."; //$NON-NLS-1$
+            return unsavedFiles(new ArrayList<String>(unsaved));
         }
 
         return null;
+    }
+
+    /**
+     * Returns the text for files of a launch with unsaved changes.
+     *
+     * @param aFiles - the paths of the files
+     * @return text
+     */
+    static String unsavedFiles(List<String> aFiles) {
+        return "Files of the launch have unsaved changes in an editor, about which RDi would ask in a dialog: " //$NON-NLS-1$
+            + names(aFiles) + ". " + Hints.askDeveloper("save them"); //$NON-NLS-1$ //$NON-NLS-2$
     }
 
     private static Set<IProject> affectedProjects(ILaunchConfiguration aConfiguration) {

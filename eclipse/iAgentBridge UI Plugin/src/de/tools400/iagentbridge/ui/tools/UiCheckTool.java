@@ -66,8 +66,7 @@ public class UiCheckTool extends AbstractActionTool {
             boolean button = widget instanceof Button && (widget.getStyle() & (SWT.CHECK | SWT.TOGGLE | SWT.RADIO)) != 0;
             boolean item = (widget instanceof TreeItem || widget instanceof TableItem) && (target.getControl().getStyle() & SWT.CHECK) != 0;
             if (!button && !item) {
-                throw new IllegalArgumentException(target.describe() + " has no state to check. ui_check works on checkboxes, toggle and " //$NON-NLS-1$
-                    + "radio buttons and on rows and tree items of a table or tree with check boxes."); //$NON-NLS-1$
+                throw new IllegalArgumentException(noState(target.describe()));
             }
             if (radio && !checked) {
                 throw new IllegalArgumentException("A radio button cannot be unchecked; select another radio button of its group."); //$NON-NLS-1$
@@ -92,5 +91,17 @@ public class UiCheckTool extends AbstractActionTool {
 
             return "Set " + target.describe() + " to " + state + "."; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
         };
+    }
+
+    /**
+     * Returns the text for a target without a state to check.
+     *
+     * @param aDescription - the description of the target
+     * @return text
+     */
+    static String noState(String aDescription) {
+        return aDescription + " has no state to check. ui_check works on checkboxes, toggle and radio buttons and on rows and tree " //$NON-NLS-1$
+            + "items of a table or tree with check boxes. Use ui_click for other buttons, ui_select with the reference of the table or tree " //$NON-NLS-1$
+            + "for rows and items."; //$NON-NLS-1$
     }
 }

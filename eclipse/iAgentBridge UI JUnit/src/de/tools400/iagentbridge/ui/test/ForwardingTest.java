@@ -105,6 +105,8 @@ public class ForwardingTest {
 
         assertTrue(result.isError());
         assertTrue(result.getText(), result.getText().startsWith("The token for the test instance \"a\" (port 39196) could not be read: "));
+        assertTrue(result.getText(), result.getText()
+            .endsWith(". Ask the developer to check the token file of iAgentBridge or -Diagentbridge.token of the launch configuration."));
     }
 
     private static TestInstance instance(String aName, String aPort) {

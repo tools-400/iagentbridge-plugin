@@ -66,16 +66,40 @@ public final class MenuWalker {
         detect.doit = true;
         WidgetEvents.notify(aControl, SWT.MenuDetect, detect);
         if (!detect.doit) {
-            throw new ActionRejectedException("The context menu of " + description + " was vetoed."); //$NON-NLS-1$ //$NON-NLS-2$
+            throw new ActionRejectedException(vetoed(description, anItem != null));
         }
 
         Menu menu = aControl.isDisposed() ? null : aControl.getMenu();
         if (menu == null) {
-            throw new ActionRejectedException(description + " has no context menu."); //$NON-NLS-1$
+            throw new ActionRejectedException(noContextMenu(description));
         }
         WidgetEvents.notify(menu, SWT.Show, WidgetEvents.event(menu));
 
         return menu;
+    }
+
+    /**
+     * Returns the text for a context menu, that a listener of MenuDetect
+     * vetoed.
+     *
+     * @param aDescription - the description of the control
+     * @param anItem - <code>true</code>, if the menu was asked for a row or an
+     *        item
+     * @return text
+     */
+    static String vetoed(String aDescription, boolean anItem) {
+        return "The context menu of " + aDescription + " was vetoed. " //$NON-NLS-1$ //$NON-NLS-2$
+            + (anItem ? "Use the menu bar (ui_menu without 'ref') or ui_command." : "Give the reference of a row or an item, or use ui_command."); //$NON-NLS-1$ //$NON-NLS-2$
+    }
+
+    /**
+     * Returns the text for a control without a context menu.
+     *
+     * @param aDescription - the description of the control
+     * @return text
+     */
+    static String noContextMenu(String aDescription) {
+        return aDescription + " has no context menu. Use the menu bar (ui_menu without 'ref') or ui_command."; //$NON-NLS-1$
     }
 
     /**
@@ -118,13 +142,24 @@ public final class MenuWalker {
                     + ". Add one of them to the path."); //$NON-NLS-1$
             } else if (!item.isEnabled()) {
                 hide(shown);
-                throw new ActionRejectedException("The menu item '" + part + "' is disabled."); //$NON-NLS-1$ //$NON-NLS-2$
+                throw new ActionRejectedException(disabledItem(part));
             } else {
                 return item;
             }
         }
 
         throw new IllegalStateException("empty path"); //$NON-NLS-1$
+    }
+
+    /**
+     * Returns the text for a menu item, that is disabled.
+     *
+     * @param aPart - the text of the menu item in the path
+     * @return text
+     */
+    static String disabledItem(String aPart) {
+        return "The menu item '" + aPart + "' is disabled. It may depend on the selection or the active part: select the right element " //$NON-NLS-1$ //$NON-NLS-2$
+            + "first, then repeat."; //$NON-NLS-1$
     }
 
     /**

@@ -37,7 +37,14 @@ import de.tools400.iagentbridge.mcp.McpToolResult;
  */
 public class AbstractActionToolTest {
 
-    private static final String EARLIER = "The earlier action ui_click w17 failed: java.lang.IllegalStateException: listener failed\n"; //$NON-NLS-1$
+    private static final String EARLIER = "The earlier action ui_click w17 failed: java.lang.IllegalStateException: listener failed. The action may " //$NON-NLS-1$
+        + "have run in part: check its result in a snapshot before you repeat it.\n"; //$NON-NLS-1$
+
+    /** A snapshot of a wait, without regular expression characters */
+    private static final String SNAPSHOT = "shell Preferences w1 modal active"; //$NON-NLS-1$
+
+    /** The hint after the end of the workbench or the display */
+    private static final String INSTANCE_RUNS = "list_launches shows, whether the test instance runs; start_launch starts it again."; //$NON-NLS-1$
 
     @Before
     public void setUp() {
@@ -88,6 +95,50 @@ public class AbstractActionToolTest {
         assertEquals(1, clicks[0]);
         assertFalse(result.getText(), result.isError());
         assertTrue(result.getText(), result.getText().startsWith(EARLIER + "Clicked button \"OK\" [w20].\nNo snapshot: ")); //$NON-NLS-1$
+        assertTrue(result.getText(), result.getText().endsWith(". Take one with ui_snapshot.")); //$NON-NLS-1$
+    }
+
+    @Test
+    public void testBusySnapshotReturnsResult() throws Exception {
+
+        AtomicInteger calls = new AtomicInteger();
+        // The UI thread runs the action, but not the snapshot.
+        Executor ui = aRunnable -> {
+            if (calls.incrementAndGet() == 1) {
+                aRunnable.run();
+            }
+        };
+        McpToolResult result = new TestTool(aContext -> "Clicked button \"OK\" [w20].", 1).execute(arguments("{\"keepDialogsBehind\":false}"), //$NON-NLS-1$ //$NON-NLS-2$
+            null, ui, () -> null);
+
+        assertFalse(result.getText(), result.isError());
+        assertEquals("Clicked button \"OK\" [w20].\nNo snapshot: UI thread busy for 1 s. Take one later with ui_snapshot.", result.getText()); //$NON-NLS-1$
+    }
+
+    @Test
+    public void testStepNotExecuted() throws Exception {
+
+        AbstractActionTool.Action action = new AbstractActionTool.Action() {
+
+            @Override
+            public String perform(AbstractActionTool.ActionContext aContext) {
+                return "Clicked"; //$NON-NLS-1$
+            }
+
+            @Override
+            public void prelude(AbstractActionTool.ActionEnvironment anEnvironment) throws Exception {
+                AbstractActionTool.step(anEnvironment, "Expanding 'General'", () -> null); //$NON-NLS-1$
+            }
+        };
+        // The UI thread runs nothing.
+        Executor busy = aRunnable -> {
+            // Never runs.
+        };
+        McpToolResult result = new TestTool(action, 1).execute(arguments("{\"keepDialogsBehind\":false}"), null, busy, () -> null); //$NON-NLS-1$
+
+        assertTrue(result.isError());
+        assertEquals("Expanding 'General' not executed - UI thread busy for 1 s. The action will not run; repeat it, when the test instance " //$NON-NLS-1$
+            + "answers again.", result.getText()); //$NON-NLS-1$
     }
 
     @Test
@@ -139,8 +190,10 @@ public class AbstractActionToolTest {
 
         McpToolResult result = tool.execute(arguments("{\"snapshot\":false,\"keepDialogsBehind\":false}"), null, threads, () -> null); //$NON-NLS-1$
 
-        assertEquals("The action has not returned yet - a dialog is open.", result.getText()); //$NON-NLS-1$
-        assertEquals("The earlier action ui_test failed: java.lang.IllegalStateException: own failure\n", AbstractUiTool.takePendingFailures()); //$NON-NLS-1$
+        assertEquals("The action has not returned yet - a dialog is open. Operate or close the dialog; the next UI tool reports a later " //$NON-NLS-1$
+            + "failure of the action.", result.getText()); //$NON-NLS-1$
+        assertEquals("The earlier action ui_test failed: java.lang.IllegalStateException: own failure. The action may have run in part: " //$NON-NLS-1$
+            + "check its result in a snapshot before you repeat it.\n", AbstractUiTool.takePendingFailures()); //$NON-NLS-1$
     }
 
     @Test
@@ -162,7 +215,8 @@ public class AbstractActionToolTest {
             });
 
         assertFalse(result.getText(), result.isError());
-        assertEquals("Pressed ESC: closed shell \"Kennwort eingeben\" [w4].\nThe workbench of the test instance has ended.", result.getText()); //$NON-NLS-1$
+        assertEquals("Pressed ESC: closed shell \"Kennwort eingeben\" [w4].\nThe workbench of the test instance has ended. " + INSTANCE_RUNS, //$NON-NLS-1$
+            result.getText());
     }
 
     @Test
@@ -174,7 +228,25 @@ public class AbstractActionToolTest {
         McpToolResult result = new UiWaitTool().execute(arguments("{\"shell\":\"Preferences\",\"timeoutSeconds\":1}"), null, ended); //$NON-NLS-1$
 
         assertTrue(result.isError());
-        assertEquals("Waiting for the shell \"Preferences\" stopped. The workbench of the test instance has ended.", result.getText()); //$NON-NLS-1$
+        assertEquals("Waiting for the shell \"Preferences\" stopped. The workbench of the test instance has ended. " + INSTANCE_RUNS, //$NON-NLS-1$
+            result.getText());
+    }
+
+    /**
+     * A UI thread, that runs no check, ends the wait after its time and the
+     * reserve for the snapshot: 11 s.
+     */
+    @Test
+    public void testWaitWithBusyUiThread() throws Exception {
+
+        Executor busy = aRunnable -> {
+            // Never runs.
+        };
+        McpToolResult result = new UiWaitTool().execute(arguments("{\"shell\":\"Preferences\",\"timeoutSeconds\":1}"), null, busy); //$NON-NLS-1$
+
+        assertTrue(result.isError());
+        assertEquals("Waiting for the shell \"Preferences\": UI thread busy for 11 s. Try again later; ui_error_log answers also, while the " //$NON-NLS-1$
+            + "UI thread is busy.", result.getText()); //$NON-NLS-1$
     }
 
     @Test
@@ -190,6 +262,51 @@ public class AbstractActionToolTest {
         }
 
         assertEquals(EARLIER, AbstractUiTool.takePendingFailures());
+    }
+
+    /**
+     * A wait through execute() with a check and a snapshot of the test in place
+     * of the display: the line about the condition fits the snapshot.
+     */
+    @Test
+    public void testWaitMet() throws Exception {
+
+        McpToolResult result = new UiWaitTool().execute(arguments("{\"shell\":\"Preferences\",\"timeoutSeconds\":1}"), Runnable::run, //$NON-NLS-1$
+            aCondition -> Boolean.TRUE, () -> SNAPSHOT);
+
+        assertFalse(result.isError());
+        assertTrue(result.getText(), result.getText().matches("Waited [0-9.]+ s for the shell \"Preferences\"\\.\n" + SNAPSHOT)); //$NON-NLS-1$
+    }
+
+    @Test
+    public void testWaitTimeoutWithSnapshot() throws Exception {
+
+        McpToolResult result = new UiWaitTool().execute(arguments("{\"shell\":\"Preferences\",\"timeoutSeconds\":1}"), Runnable::run, //$NON-NLS-1$
+            aCondition -> Boolean.FALSE, () -> SNAPSHOT);
+
+        assertTrue(result.isError());
+        assertTrue(result.getText(), result.getText().matches("Timeout after [0-9.]+ s waiting for the shell \"Preferences\"\\. See the snapshot; " //$NON-NLS-1$
+            + "ui_error_log may show, why nothing happened\\.\n" + SNAPSHOT)); //$NON-NLS-1$
+    }
+
+    /**
+     * The snapshot after the wait fails: the line about the condition does not
+     * point to it.
+     */
+    @Test
+    public void testWaitTimeoutWithoutSnapshot() throws Exception {
+
+        McpToolResult result = new UiWaitTool().execute(arguments("{\"shell\":\"Preferences\",\"timeoutSeconds\":1}"), Runnable::run, //$NON-NLS-1$
+            aCondition -> Boolean.FALSE, () -> {
+                throw new IllegalStateException("Widget is disposed"); //$NON-NLS-1$
+            });
+
+        assertTrue(result.isError());
+        assertTrue(result.getText(),
+            result.getText()
+                .matches("Timeout after [0-9.]+ s waiting for the shell \"Preferences\"\\. ui_error_log may " //$NON-NLS-1$
+                    + "show, why nothing happened\\.\nNo snapshot: java\\.lang\\.IllegalStateException: Widget is disposed\\. Take one with " //$NON-NLS-1$
+                    + "ui_snapshot\\.")); //$NON-NLS-1$
     }
 
     private static void addEarlierFailure() {
@@ -222,9 +339,20 @@ public class AbstractActionToolTest {
     private static final class TestTool extends AbstractActionTool {
 
         private final Action action;
+        private final int deadlineSeconds;
 
         TestTool(Action anAction) {
+            this(anAction, ACTION_DEADLINE_SECONDS);
+        }
+
+        TestTool(Action anAction, int aDeadlineSeconds) {
             action = anAction;
+            deadlineSeconds = aDeadlineSeconds;
+        }
+
+        @Override
+        protected int getDeadlineSeconds(JsonObject anArguments) {
+            return deadlineSeconds;
         }
 
         @Override

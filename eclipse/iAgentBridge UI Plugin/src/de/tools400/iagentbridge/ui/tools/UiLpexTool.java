@@ -165,7 +165,7 @@ public class UiLpexTool extends AbstractActionTool {
             collect(shell, windows);
         }
         if (windows.isEmpty()) {
-            throw new ActionRejectedException("No LPEX editor is visible in the active shell."); //$NON-NLS-1$
+            throw new ActionRejectedException(noEditor());
         }
         if (windows.size() > 1) {
             StringBuilder refs = new StringBuilder();
@@ -176,6 +176,16 @@ public class UiLpexTool extends AbstractActionTool {
         }
 
         return windows.get(0);
+    }
+
+    /**
+     * Returns the text for an active shell without an LPEX editor.
+     *
+     * @return text
+     */
+    static String noEditor() {
+        return "No LPEX editor is visible in the active shell. If a dialog is the active shell, close it first or give 'ref' of the editor; " //$NON-NLS-1$
+            + "otherwise open the source, e.g. with ui_click and 'double', or select its editor tab."; //$NON-NLS-1$
     }
 
     private static void collect(Control aControl, List<LpexWindow> aWindows) {
@@ -194,9 +204,19 @@ public class UiLpexTool extends AbstractActionTool {
     private static LpexView view(LpexWindow aWindow) throws ActionRejectedException {
         LpexView view = aWindow.getLpexView();
         if (view == null) {
-            throw new ActionRejectedException("The LPEX editor [" + WidgetRefs.of(aWindow) + "] shows no document."); //$NON-NLS-1$ //$NON-NLS-2$
+            throw new ActionRejectedException(noDocument(WidgetRefs.of(aWindow)));
         }
         return view;
+    }
+
+    /**
+     * Returns the text for an LPEX editor without a document.
+     *
+     * @param aRef - the reference of the editor
+     * @return text
+     */
+    static String noDocument(String aRef) {
+        return "The LPEX editor [" + aRef + "] shows no document. Wait, until the source is loaded, e.g. with ui_wait, then repeat."; //$NON-NLS-1$ //$NON-NLS-2$
     }
 
     private static String header(LpexWindow aWindow, LpexView aView) {

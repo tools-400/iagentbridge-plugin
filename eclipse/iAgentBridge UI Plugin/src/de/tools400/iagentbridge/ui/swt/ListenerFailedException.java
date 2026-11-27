@@ -8,6 +8,8 @@
 
 package de.tools400.iagentbridge.ui.swt;
 
+import de.tools400.iagentbridge.ui.model.Hints;
+
 /**
  * A listener of an action failed, and the handler of the workbench took the
  * failure, so that it did not reach the action. The cause is the failure.
@@ -22,6 +24,6 @@ public class ListenerFailedException extends Exception {
      * @param aFailure - the failure of the listener
      */
     public ListenerFailedException(Throwable aFailure) {
-        super("A listener of the action failed: " + aFailure, aFailure); //$NON-NLS-1$
+        super(Hints.after("A listener of the action failed: " + aFailure, Hints.RAN_IN_PART), aFailure); //$NON-NLS-1$
     }
 }

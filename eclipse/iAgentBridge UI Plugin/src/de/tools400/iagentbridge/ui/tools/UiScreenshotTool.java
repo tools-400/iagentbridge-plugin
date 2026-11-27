@@ -48,7 +48,12 @@ public class UiScreenshotTool extends AbstractUiTool {
     private static final String INPUT_SCHEMA = "{\"type\":\"object\",\"properties\":{" //$NON-NLS-1$
         + "\"shell\":{\"type\":\"string\",\"description\":\"Reference or title of a shell. Default: the active shell.\"}," //$NON-NLS-1$
         + "\"ref\":{\"type\":\"string\",\"description\":\"Reference of a control, e.g. w17, instead of a shell.\"}," //$NON-NLS-1$
-        + "\"maxWidth\":{\"type\":\"integer\",\"description\":\"Wider images are scaled down to this width. Default: 1280.\"}}}"; //$NON-NLS-1$
+        + "\"maxWidth\":{\"type\":\"integer\",\"description\":\"Wider images are scaled down to this width. Default: 1280.\"}," //$NON-NLS-1$
+        + "\"returnImage\":{\"type\":\"boolean\",\"description\":\"Return the image in the result. false saves it only and returns " //$NON-NLS-1$
+        + "the path, e.g. for screenshots for the developer, that you need not see; the folder keeps the newest " + ScreenshotFiles.KEEP //$NON-NLS-1$
+        + " images. Default: true.\"}}}"; //$NON-NLS-1$
+
+    private static final String ARGUMENT_RETURN_IMAGE = "returnImage"; //$NON-NLS-1$
 
     private static final int DEFAULT_MAX_WIDTH = 1280;
     private static final int MIN_WIDTH = 100;
@@ -76,6 +81,7 @@ public class UiScreenshotTool extends AbstractUiTool {
         String ref = UiArguments.getOptionalString(anArguments, "ref"); //$NON-NLS-1$
         UiArguments.checkShellOrRef(shell, ref);
         int maxWidth = ToolArguments.getInt(anArguments, "maxWidth", DEFAULT_MAX_WIDTH, MIN_WIDTH); //$NON-NLS-1$
+        boolean returnImage = UiArguments.getBoolean(anArguments, ARGUMENT_RETURN_IMAGE, true);
 
         Display display = getDisplay();
         Capture capture;
@@ -100,7 +106,25 @@ public class UiScreenshotTool extends AbstractUiTool {
             + (capture.data.width > maxWidth ? " (scaled down from " + capture.data.width + "x" + capture.data.height + ")" : "") //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
             + ", saved in " + file.getPath(); //$NON-NLS-1$
 
-        return McpToolResult.success(text).withImage(bytes, MIME_PNG);
+        return result(text, bytes, returnImage);
+    }
+
+    /**
+     * Returns the result of the tool: the text with the image, or only the
+     * text, if the image shall not be returned.
+     *
+     * @param aText - the text with the path of the saved image
+     * @param aPng - the image as PNG
+     * @param aReturnImage - <code>true</code>, if the result contains the image
+     * @return result
+     */
+    static McpToolResult result(String aText, byte[] aPng, boolean aReturnImage) {
+
+        if (!aReturnImage) {
+            return McpToolResult.success(aText + "; the image is not returned (" + ARGUMENT_RETURN_IMAGE + ": false)."); //$NON-NLS-1$ //$NON-NLS-2$
+        }
+
+        return McpToolResult.success(aText).withImage(aPng, MIME_PNG);
     }
 
     /**
@@ -116,14 +140,14 @@ public class UiScreenshotTool extends AbstractUiTool {
             }
             control = (Control)widget;
             if (!control.isVisible()) {
-                throw new IllegalArgumentException("Ref " + aRef + " is not visible."); //$NON-NLS-1$ //$NON-NLS-2$
+                throw new IllegalArgumentException(notVisible(aRef));
             }
         } else if (aShell != null) {
             control = ShellPicker.find(aDisplay, aShell);
         } else {
             control = ShellPicker.activeShell(aDisplay);
             if (control == null) {
-                throw new IllegalArgumentException("No shell of the test instance is visible."); //$NON-NLS-1$
+                throw new IllegalArgumentException(NO_VISIBLE_SHELL);
             }
         }
 
@@ -135,6 +159,16 @@ public class UiScreenshotTool extends AbstractUiTool {
         }
 
         return new Capture(ShellPainter.paint(control), description);
+    }
+
+    /**
+     * Returns the text for a control, that is not visible.
+     *
+     * @param aRef - the reference of the control
+     * @return text
+     */
+    static String notVisible(String aRef) {
+        return "Ref " + aRef + " is not visible. Make it visible first, or take a screenshot of its shell."; //$NON-NLS-1$ //$NON-NLS-2$
     }
 
     /**

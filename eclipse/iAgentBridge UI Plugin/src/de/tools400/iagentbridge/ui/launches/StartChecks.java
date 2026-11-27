@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import de.tools400.iagentbridge.ui.model.Hints;
+
 /**
  * The checks of start_launch before the launch, without Eclipse types. Each
  * would otherwise end in a dialog of the RDi, in which the developer works, or
@@ -49,16 +51,17 @@ public final class StartChecks {
         Matcher prompt = PROMPT.matcher(anInfo.getVmArguments() + " " + anInfo.getProgramArguments() + " " + location); //$NON-NLS-1$ //$NON-NLS-2$
         if (prompt.find()) {
             return name + " asks for a value at the start (" + prompt.group() //$NON-NLS-1$
-                + "), which would open a dialog in this RDi. Start it by hand."; //$NON-NLS-1$
+                + "), which would open a dialog in this RDi. " + Hints.askDeveloper("start it by hand"); //$NON-NLS-1$ //$NON-NLS-2$
         }
 
         if (anInfo.asksToClear()) {
-            return name + " asks, whether its workspace shall be cleared, which would open a dialog in this RDi. Start it by hand " //$NON-NLS-1$
-                + "or turn off the question in the launch configuration."; //$NON-NLS-1$
+            return name + " asks, whether its workspace shall be cleared, which would open a dialog in this RDi. " //$NON-NLS-1$
+                + Hints.askDeveloper("start it by hand or to turn off the question in the launch configuration"); //$NON-NLS-1$
         }
 
         if (aWaiting != null) {
-            return "A start of " + quote(aWaiting) + " is still waiting - probably for an answer in a dialog of RDi."; //$NON-NLS-1$ //$NON-NLS-2$
+            return "A start of " + quote(aWaiting) + " is still waiting - probably for an answer in a dialog of RDi. " //$NON-NLS-1$ //$NON-NLS-2$
+                + Hints.askDeveloper("answer the dialog"); //$NON-NLS-1$
         }
 
         boolean uiTools = anInfo.getInstance().hasUiTools();
@@ -74,7 +77,7 @@ public final class StartChecks {
 
         Integer port = anInfo.getInstance().getPort();
         if (aPortAnswers && port != null) {
-            return "Port " + port + " of " + name + " is in use by another process. Stop it first."; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+            return "Port " + port + " of " + name + " is in use by another process. " + Hints.FOREIGN_PROCESS; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
         }
 
         return null;
@@ -95,7 +98,7 @@ public final class StartChecks {
     public static String checkWorkspace(LaunchInfo anInfo, String aWorkspace, boolean aLocked) {
         if (aLocked) {
             return quote(anInfo.getName()) + " uses the workspace " + aWorkspace //$NON-NLS-1$
-                + ", which another process has locked. Stop that process first."; //$NON-NLS-1$
+                + ", which another process has locked. " + Hints.FOREIGN_PROCESS; //$NON-NLS-1$
         }
         return null;
     }

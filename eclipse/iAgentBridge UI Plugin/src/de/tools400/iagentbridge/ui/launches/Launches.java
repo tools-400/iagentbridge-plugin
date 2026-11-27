@@ -31,7 +31,8 @@ import de.tools400.iagentbridge.ui.forwarding.TestInstance;
 public final class Launches {
 
     private static final String ATTR_VM_ARGUMENTS = "org.eclipse.jdt.launching.VM_ARGUMENTS"; //$NON-NLS-1$
-    private static final String ATTR_PROGRAM_ARGUMENTS = "org.eclipse.jdt.launching.PROGRAM_ARGUMENTS"; //$NON-NLS-1$
+    /** Attribute of JDT with the program arguments of a configuration */
+    static final String ATTR_PROGRAM_ARGUMENTS = "org.eclipse.jdt.launching.PROGRAM_ARGUMENTS"; //$NON-NLS-1$
     private static final String ATTR_LOCATION = "location"; //$NON-NLS-1$
     private static final String ATTR_CLEAR_WORKSPACE = "clearws"; //$NON-NLS-1$
     private static final String ATTR_ASK_CLEAR = "askclear"; //$NON-NLS-1$

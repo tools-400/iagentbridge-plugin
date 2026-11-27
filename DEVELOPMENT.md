@@ -53,7 +53,7 @@ Packages of `iAgentBridge Core Plugin`:
 
 | Package | Content |
 |---|---|
-| `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `ToolCollection` (the tools of the server), `ContributedTools` (the tools of other plug-ins), `Messages` |
+| `de.tools400.iagentbridge` | `IAgentBridgePlugin` (activator, starts, stops and restarts the server), `IAgentBridgeStartup` (`org.eclipse.ui.startup`), `ServerSettings` (port and token), `ClientCommands` (command for Claude Code), `ToolCollection` (the tools and the instructions of the server), `ContributedTools` (the tools and the instructions of other plug-ins), `Messages` |
 | `de.tools400.iagentbridge.mcp` | the protocol: `McpHttpServer`, `McpDispatcher`, `McpResponse`, `IMcpErrorLog`, `IMcpTool`, `McpToolResult`, `ToolArguments`, and `ToolJobs` (runs a job and waits for it); exported for the tools of other plug-ins |
 | `de.tools400.iagentbridge.tools` | the tools: `CleanUpTool`, `GetProblemsTool`, `ImportProjectsTool`, `RunTestsTool`, `WorkspaceInfoTool` and their helpers, e.g. `WorkspaceFiles` (file of the workspace for a path of the client, unsaved changes), `WorkspaceProjects` (projects and the projects, that they reference), `WorkspaceJobs` (runs an operation on the resources in a job and waits for it), `StatusMessages`, `ProblemReport` (result of `get_problems`), `ProjectDirectories` (search of `import_projects`), `ImportReport` (result of `import_projects`), `TestRun` (launch and listeners of `run_tests`) and `TestRunReport` (result of `run_tests`) |
 | `de.tools400.iagentbridge.preferences` | `Preferences` and their defaults |
@@ -74,7 +74,7 @@ Packages of `iAgentBridge UI Plugin`, see [UI tools](#ui-tools) and [Launch tool
 | `de.tools400.iagentbridge.ui.preferences` | `UiPreferences`, `UiToolsPreferencePage` (page *iAgentBridge > UI tools*); its texts in `de.tools400.iagentbridge.ui.Messages` |
 | `de.tools400.iagentbridge.ui.forwarding` | `TestInstanceFinder` (the test instance among the launches), `Forwarding` (which test instance, which token), `ForwardingClient` (HTTP), `ForwardedResult` (JSON-RPC response to `McpToolResult`), `TestInstance`, `CommandLine`, `TokenFile` |
 | `de.tools400.iagentbridge.ui.swt` | `UiThread` (code in the UI thread with a timeout), `WidgetRefs`, `ShellPicker`, `NativeDialogs`, `WidgetModelBuilder` (widgets to the model), `WorkbenchStateBuilder`, `ShellPainter` (image of a shell); for the actions `ActionTarget` (the widget and its checks), `ShellLock`, `WidgetEvents`, `KeyEvents`, `MenuWalker`, `ItemFinder`, `ForegroundGuard`, `ListenerFailures`, `LpexEdits`; for `ui_close` `OpenDialogs` |
-| `de.tools400.iagentbridge.ui.model` | without SWT types: the snapshot (`WidgetNode`, `WorkbenchState`, `SnapshotWriter`, `LocatorBuilder`, `Mnemonics`) and the actions (`Deadline`, `Journal`, `JournalEntry`, `PendingFailures`, `KeyParser`, `KeyStroke`, `ItemPath`, `WaitCondition`, `LpexLines`) and the error log (`ErrorLogEntry`, `ErrorLogParser`, `ErrorLogReport`) |
+| `de.tools400.iagentbridge.ui.model` | without SWT types: the snapshot (`WidgetNode`, `WorkbenchState`, `SnapshotWriter`, `LocatorBuilder`, `Mnemonics`) and the actions (`Deadline`, `Journal`, `JournalEntry`, `PendingFailures`, `KeyParser`, `KeyStroke`, `ItemPath`, `WaitCondition`, `LpexLines`) and the error log (`ErrorLogEntry`, `ErrorLogParser`, `ErrorLogReport`), and `Hints`, that several error texts share |
 
 The packages `model` and `forwarding` except `TestInstanceFinder`, the classes `LaunchInfo`,
 `RunningLaunch`, `StartChecks`, `StopDecision`, `CloseResult`, `PortProbe`, `Identity` and
@@ -378,6 +378,22 @@ handlers: there the exception reaches the action.
 Handlers, that depend on the active part, e.g. *Save*, may be disabled, while the test instance is
 in the background.
 
+**Error texts.** Every error text of the UI tools and the launch tools, that reports a state, tells
+the agent, what to do next: repeat, take a snapshot, operate a dialog, restart the test instance or
+ask the developer. Hints, that several texts share, are constants of `Hints`; `Hints.after()`
+appends one to a text, whose end comes from outside, e.g. an answer of the test instance, as a
+sentence of its own, and `Hints.askDeveloper()` names, what the developer shall do in the RDi, that
+the UI tools cannot reach. A launch, that the agent did not start, belongs to the developer: the
+hints never tell the agent to stop it. A text, that is built in code with widgets, a display or
+launches, lies in a package visible static method next to it, so that a test checks it without them.
+
+**Instructions.** The workflow for the agent - when to test, the question to the developer, the
+steps from `get_problems` to `stop_launch` - is the file `instructions/ui-tools.txt` of the UI
+plug-in, contributed with the element `instructions` of the extension, see [Tools](#tools). It names
+no product and no port, because it serves the development of any plug-in, and it says nothing, that
+the descriptions of the tools or the hints of the error texts say already. Whoever changes a UI tool
+or a launch tool checks the instructions in the same commit.
+
 **Error log.** `UiErrorLogTool` reads `Platform.getLogFileLocation()` in the server thread, so it
 answers also, while the UI thread is busy. The `.log` of Equinox is UTF-8: `!SESSION` before the
 first entry of a start and at the start of every file after a rotation, followed by a header up to
@@ -395,10 +411,11 @@ the backups. `ErrorLogReport` shows at most 20 child entries of an entry and the
 `Files.readAllLines` reads the log, so that Equinox can still rename it at a rotation; an open
 `FileInputStream` lets `File.renameTo()` fail.
 
-**Working on the UI plug-in.** The RDi, in which you work, offers the tools of its installed UI
-plug-in. New tools or arguments of the workspace reach an agent only directly on the port of the
-test instance, e.g. with `claude -p --mcp-config`, until they are installed in that RDi and a new
-session of Claude Code starts.
+**Working on the UI plug-in.** The RDi, in which you work, offers the tools and the instructions of
+its installed UI plug-in. New tools or arguments of the workspace reach an agent only directly on
+the port of the test instance, e.g. with `claude -p --mcp-config`, until they are installed in that
+RDi and a new session of Claude Code starts; a changed text of the instructions reaches an agent
+only in a new session, too.
 
 ### Launch tools
 
@@ -422,7 +439,11 @@ no access to the internal package), else all plug-in and feature projects; a *JU
 checks all plug-ins of its configuration, too. A workspace, that another process has locked,
 cannot be used; `WorkspaceLock` tries the file lock on `.metadata/.lock`, that a running Eclipse
 holds, and releases it at once. `LaunchStarter` sets `automaticValidate=false` in a working copy, so
-that the validation of PDE opens no dialog, and launches a working copy of that copy: PDE saves the
+that the validation of PDE opens no dialog, and appends `-nosplash` to its program arguments, unless
+they contain it: the splash screen takes the focus from the window of the developer. The attribute
+`showSplash` of the configuration does not help, because PDE of RDi 9.6 and 9.9 takes the splash
+screen from `config.ini` and adds `-showsplash`, unless the program arguments contain `-nosplash`.
+It launches a working copy of that copy: PDE saves the
 configuration, that it launches, e.g. when it sets a missing `SOURCE_PATH_PROVIDER`, and a copy of
 a copy saves into the outer copy in memory, never into the `.launch` file. A plug-in, that does not
 resolve, is missing in the test instance then.
@@ -493,6 +514,16 @@ type `object`; `ContributedTools` leaves out a tool, that cannot be created or d
 `IMcpTool`. Their errors go to the error log, so that one faulty plug-in does not stop the server.
 The info message of the start lists the names of the tools.
 
+The instructions, that `initialize` returns, are `IAgentBridgePlugin.INSTRUCTIONS`, followed by
+those of the element `instructions` of other plug-ins. `ContributedTools` reads their files after
+all tools, as UTF-8 without a byte order mark; `ToolCollection.addInstructions()` turns the line
+ends into `\n`, removes the white space at the start and the end, and leaves out a text, that is
+empty, the second one of a plug-in, and the one of a plug-in, of which no tool was added; such
+errors and a missing or unreadable file go to the error log. `getInstructions()` joins the texts
+ordered by the IDs of the plug-ins, each after an empty line. Claude Code reads the first 4096
+characters, before version 2.1.296 the first 2048, so the text of the core has a budget of 1000
+characters and the one of the UI plug-in 3000.
+
 The package `de.tools400.iagentbridge.mcp` is exported with `uses:="com.google.gson"`, because
 `IMcpTool` has Gson types in its methods: a plug-in with a tool then gets the same Gson as
 iAgentBridge, although RDi 9.6 has two versions of it. Only `IMcpTool`, `McpToolResult`,
@@ -517,8 +548,10 @@ Test*. `McpHttpServerTest` starts the server on a free port and sends raw HTTP r
 `eclipse/iAgentBridge JUnit/launches`) checks, that `messages.properties` and
 `messages_de.properties` have exactly the keys of `Messages`. `ToolCollectionTest` checks, which
 tools the server accepts: names, descriptions, input schemas, duplicate names and tools, that fail
-to describe themselves. `ProblemReportTest` checks the result of `get_problems`: order, severity
-filter, counts, cut and JSON; the build and the markers themselves need RDi and are tested by hand
+to describe themselves; and the instructions: order, empty line, line ends, texts left out.
+`InstructionsBudgetTest` keeps `IAgentBridgePlugin.INSTRUCTIONS` within 1000 characters.
+`ProblemReportTest` checks the result of `get_problems`: order, severity filter, counts, cut and
+JSON; the build and the markers themselves need RDi and are tested by hand
 with a test instance. `TestRunReportTest` checks the result of `run_tests`: counts, ends, cut,
 filter of the stack traces and JSON; the launch and the events of JDT are tested by hand with a test
 instance and test projects with green, red and hanging tests. `ProjectDirectoriesTest` checks the
@@ -543,19 +576,27 @@ place of the UI thread (an action, that ends, opens a dialog, runs too long, or 
 `WaitConditionTest` and `LpexLinesTest` the keys, paths, conditions and the lines of `ui_lpex`,
 `AbstractActionToolTest` the flow of an action without a display (failures of earlier actions, a
 failing snapshot, the guard for the foreground, an action or a wait, after which the display has
-ended), `UiToolsTest` single tools without a widget (among them the arguments of the launch tools,
-their rejection in a test instance and the error log of a file), and `UiMessagesTest`, that both
+ended) and of `ui_wait` with a check and a snapshot of the test in place of the display,
+`UiToolsTest` single tools without a widget (among them the arguments of the launch tools,
+their rejection in a test instance, the error log of a file and the result of `ui_screenshot`
+without the image), and `UiMessagesTest`, that both
 languages have the keys of `Messages`. `ErrorLogTest` checks the parser and the report of the error
 log (sessions, child entries, empty lines, continuation lines, severities, filters, cuts, a long
 stack trace), `LaunchRulesTest` the checks before a start, the lock of a workspace, the decisions of
 `stop_launch` and the result of `ui_close`, `IdentityTest` `Identity` against a real
-`McpHttpServer`, `HotCodeReplaceTest` the text of the results of hot code replace. The widgets
-themselves, the events of the actions, the forwarding from the RDi, in which you work, the
+`McpHttpServer`, `HotCodeReplaceTest` the text of the results of hot code replace,
+`LaunchStarterTest` the attributes and the program arguments of a start (`-nosplash`). `HintsTest`
+checks `Hints.after()`, `SwtHintsTest` and `LaunchHintsTest` the error texts with their hints, that
+are built in code with widgets or launches. `UiInstructionsTest` checks the file of the
+instructions: at most 3000 characters, the rules before the question and the steps and within the
+first 2048 characters after the text of the core, no product name and no port, ASCII only. The
+widgets themselves, the events of the actions, the forwarding from the RDi, in which you work, the
 screenshots, and the start and end of launches with hot code replace are tested by hand with a test
 instance.
 `AbstractActionToolTest` and `UiToolsTest` lie in the package `de.tools400.iagentbridge.ui.tools` of
-the plug-in, `HotCodeReplaceTest` in `de.tools400.iagentbridge.ui.launches`, because they call
-package visible methods.
+the plug-in, `HotCodeReplaceTest`, `LaunchStarterTest` and `LaunchHintsTest` in
+`de.tools400.iagentbridge.ui.launches`, `SwtHintsTest` in `de.tools400.iagentbridge.ui.swt`, because
+they call package visible methods.
 
 Outside of RDi, compile with the ECJ of RDi 9.6 against all bundles of
 `C:\IBM\RDi_096\configuration\org.eclipse.equinox.simpleconfigurator\bundles.info`, copy the

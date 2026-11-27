@@ -188,7 +188,8 @@ public abstract class AbstractActionTool extends AbstractUiTool {
             text.append(outcome.getValue());
             break;
         case DIALOG_OPEN:
-            text.append("The action has not returned yet - a dialog is open."); //$NON-NLS-1$
+            text.append("The action has not returned yet - a dialog is open. Operate or close the dialog; the next UI tool reports a later " //$NON-NLS-1$
+                + "failure of the action."); //$NON-NLS-1$
             break;
         case STILL_RUNNING:
             return error("UI thread busy for " + outcome.getSeconds() + " s - the action is still running. Do not repeat it; take a snapshot later."); //$NON-NLS-1$ //$NON-NLS-2$
@@ -246,7 +247,8 @@ public abstract class AbstractActionTool extends AbstractUiTool {
                 throw new ActionRejectedException(aDescription + ": UI thread busy for " + outcome.getSeconds() //$NON-NLS-1$
                     + " s - it is still running. Take a snapshot later."); //$NON-NLS-1$
             default:
-                throw new ActionRejectedException(aDescription + " not executed - UI thread busy for " + outcome.getSeconds() + " s."); //$NON-NLS-1$ //$NON-NLS-2$
+                throw new ActionRejectedException(aDescription + " not executed - UI thread busy for " + outcome.getSeconds() //$NON-NLS-1$
+                    + " s. The action will not run; repeat it, when the test instance answers again."); //$NON-NLS-1$
             }
         } finally {
             guard.end();
@@ -301,12 +303,12 @@ public abstract class AbstractActionTool extends AbstractUiTool {
                 UiThread.read(anUi, aDeadline, () -> null);
             }
         } catch (UiThreadBusyException e) {
-            aText.append("\nNo snapshot: ").append(e.getMessage()).append('.'); //$NON-NLS-1$
+            aText.append('\n').append(snapshotBusy(e.getMessage()));
         } catch (RejectedExecutionException e) {
             aText.append('\n').append(WORKBENCH_ENDED);
         } catch (Exception e) {
             // The action ran: its result counts, not the snapshot.
-            aText.append("\nNo snapshot: ").append(e).append('.'); //$NON-NLS-1$
+            aText.append('\n').append(snapshotFailed(e));
         }
     }
 

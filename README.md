@@ -28,7 +28,9 @@ Further information is available on the
 * **User interface of a test instance** (optional feature *iAgentBridge UI*, for developers of RDi
   plug-ins): lets the agent start a test instance of RDi from the workspace and read and operate
   its user interface like a user (`ui_snapshot`, `ui_click` and more), e.g. to check a new dialog.
-  The user interface of the RDi, in which the developer works, is never touched.
+  The user interface of the RDi, in which the developer works, is never touched. The server tells
+  the agent, when and how to test a change of the user interface; the agent asks the developer
+  first.
 * **Tools of other plug-ins**: other RDi plug-ins can add tools to the server, e.g. `format_rpg` of
   iRPGFormatter, which formats RPG sources with the settings of RDi, and `ifs_projects_compile` and
   `ifs_projects_check_syntax` of IFS Projects, which compile files of local IFS projects on the

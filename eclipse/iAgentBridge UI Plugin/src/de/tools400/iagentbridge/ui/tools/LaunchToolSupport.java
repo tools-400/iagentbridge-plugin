@@ -61,15 +61,4 @@ final class LaunchToolSupport {
     static String quote(String aName) {
         return "\"" + aName + "\""; //$NON-NLS-1$ //$NON-NLS-2$
     }
-
-    /**
-     * Ends a text with a period, unless it ends with a punctuation mark.
-     *
-     * @param aText - the text, e.g. a reason
-     * @return the text with a period
-     */
-    static String sentence(String aText) {
-        String text = aText.trim();
-        return text.endsWith(".") || text.endsWith("?") || text.endsWith("!") ? text : text + "."; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
-    }
 }

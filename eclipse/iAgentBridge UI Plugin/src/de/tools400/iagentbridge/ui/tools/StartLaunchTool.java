@@ -46,6 +46,7 @@ import de.tools400.iagentbridge.ui.launches.RunningLaunch;
 import de.tools400.iagentbridge.ui.launches.StartChecks;
 import de.tools400.iagentbridge.ui.launches.WorkspaceLock;
 import de.tools400.iagentbridge.ui.model.Deadline;
+import de.tools400.iagentbridge.ui.model.Hints;
 import de.tools400.iagentbridge.ui.swt.UiThread;
 import de.tools400.iagentbridge.ui.swt.UiThreadBusyException;
 
@@ -56,13 +57,20 @@ import de.tools400.iagentbridge.ui.swt.UiThreadBusyException;
  */
 public class StartLaunchTool implements IMcpTool {
 
+    /**
+     * End of the sentences on hot code replace: its result does not tell, which
+     * build it belongs to, so a test of a change needs a restart
+     */
+    private static final String HOT_CODE_REPLACE_TEST = "may belong to an earlier build. To test a change, restart the test instance " //$NON-NLS-1$
+        + "with stop_launch and start_launch."; //$NON-NLS-1$
+
     private static final String DESCRIPTION = "Starts a launch configuration of the RDi, in which the developer works, without a build: " //$NON-NLS-1$
         + "an Eclipse Application, e.g. the test instance 'iAgentBridge (de)', or a JUnit Plug-in Test. With -Diagentbridge.port in its VM " //$NON-NLS-1$
         + "arguments it waits, until that port answers, and names a dialog, that the test instance shows; otherwise, until the process " //$NON-NLS-1$
         + "runs. Before the start it checks, what RDi would ask about in a dialog - errors in the projects of the launch, files with unsaved " //$NON-NLS-1$
         + "changes, a question for a value or for clearing the workspace - and rejects then. Build first with get_problems. In debug mode " //$NON-NLS-1$
-        + "hot code replace takes over changed method bodies after get_problems; list_launches shows its result. While it waits, the " //$NON-NLS-1$
-        + "server answers no other call."; //$NON-NLS-1$
+        + "hot code replace takes over changed method bodies after get_problems; list_launches shows its last result, which " //$NON-NLS-1$
+        + HOT_CODE_REPLACE_TEST + " While it waits, the server answers no other call."; //$NON-NLS-1$
 
     private static final String INPUT_SCHEMA = "{\"type\":\"object\",\"properties\":{" //$NON-NLS-1$
         + "\"name\":{\"type\":\"string\",\"description\":\"Name of the launch configuration, e.g. 'iAgentBridge (de)'. list_launches lists them.\"}," //$NON-NLS-1$
@@ -138,19 +146,30 @@ public class StartLaunchTool implements IMcpTool {
             return McpToolResult.success("Started " + quoted + " in " + mode + " mode; its process runs." + debugNote(mode)); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
         }
 
-        String failure = waitForPort(launch, quoted, port.intValue(), deadline);
+        String failure = waitForPort(launch, quoted, port.intValue(), instance.hasUiTools(), deadline);
         if (failure != null) {
             return McpToolResult.error(failure);
         }
 
         if (Identity.check(instance, Launches.workspace(configuration)) == Identity.Result.OTHER) {
             launch.terminate();
-            return McpToolResult.error("Port " + port + " of " + quoted //$NON-NLS-1$ //$NON-NLS-2$
-                + " is in use by another process, so the new instance has no server. It was stopped; stop the other process first."); //$NON-NLS-1$
+            return McpToolResult.error(portTaken(quoted, port));
         }
 
         return McpToolResult.success("Started " + quoted + " in " + mode + " mode in " + LaunchToolSupport.secondsSince(start) + " s; port " //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
             + port + " answers." + dialogNote(instance) + debugNote(mode)); //$NON-NLS-1$
+    }
+
+    /**
+     * Returns the text for a new instance, whose port another process uses.
+     *
+     * @param aQuoted - the name of the launch configuration in quotes
+     * @param aPort - the port
+     * @return text
+     */
+    static String portTaken(String aQuoted, Integer aPort) {
+        return "Port " + aPort + " of " + aQuoted //$NON-NLS-1$ //$NON-NLS-2$
+            + " is in use by another process, so the new instance has no server. It was stopped. " + Hints.FOREIGN_PROCESS; //$NON-NLS-1$
     }
 
     /**
@@ -215,15 +234,14 @@ public class StartLaunchTool implements IMcpTool {
      *
      * @return the failure or <code>null</code>
      */
-    private static String waitForPort(ILaunch aLaunch, String aQuoted, int aPort, Deadline aDeadline) throws InterruptedException {
+    private static String waitForPort(ILaunch aLaunch, String aQuoted, int aPort, boolean aUiTools, Deadline aDeadline) throws InterruptedException {
 
         while (!PortProbe.answers(aPort)) {
             if (Launches.hasEnded(aLaunch)) {
                 return ended(aQuoted, aLaunch, ", before port " + aPort + " answered"); //$NON-NLS-1$ //$NON-NLS-2$
             }
             if (aDeadline.isExpired()) {
-                return aQuoted + " runs, but port " + aPort + " did not answer within " + aDeadline.getSeconds() //$NON-NLS-1$ //$NON-NLS-2$
-                    + " s. Maybe its server is turned off in its workspace (iagentbridge.serverEnabled). The launch keeps running."; //$NON-NLS-1$
+                return portSilent(aQuoted, aPort, aDeadline.getSeconds(), aUiTools);
             }
             Thread.sleep(POLL_MILLIS);
         }
@@ -231,9 +249,38 @@ public class StartLaunchTool implements IMcpTool {
         return null;
     }
 
+    /**
+     * Returns the text for a launch, whose port did not answer in time.
+     *
+     * @param aQuoted - the name of the launch configuration in quotes
+     * @param aPort - the port
+     * @param aSeconds - the seconds waited
+     * @param aUiTools - <code>true</code>, if the launch has the UI tools
+     * @return text
+     */
+    static String portSilent(String aQuoted, int aPort, int aSeconds, boolean aUiTools) {
+        return aQuoted + " runs, but port " + aPort + " did not answer within " + aSeconds //$NON-NLS-1$ //$NON-NLS-2$
+            + " s. Maybe its server is turned off in its workspace (iagentbridge.serverEnabled). The launch keeps running. " //$NON-NLS-1$
+            + (aUiTools ? "Try a UI tool later; if" : "If") + " the port stays silent, end it with stop_launch."; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+    }
+
     private static String ended(String aQuoted, ILaunch aLaunch, String aWhen) {
-        return "The process of " + aQuoted + " ended with exit code " + Launches.exitValue(aLaunch) + aWhen //$NON-NLS-1$ //$NON-NLS-2$
-            + ". The view Console of RDi shows its output."; //$NON-NLS-1$
+        return processEnded(aQuoted, Launches.exitValue(aLaunch), aWhen);
+    }
+
+    /**
+     * Returns the text for a launch, whose process ended.
+     *
+     * @param aQuoted - the name of the launch configuration in quotes
+     * @param anExitValue - the exit code of the process
+     * @param aWhen - when it ended, e.g. ', before port 39196 answered', or an
+     *        empty string
+     * @return text
+     */
+    static String processEnded(String aQuoted, Integer anExitValue, String aWhen) {
+        return "The process of " + aQuoted + " ended with exit code " + anExitValue + aWhen //$NON-NLS-1$ //$NON-NLS-2$
+            + ". The view Console of RDi shows its output. Read the file .metadata/.log of its workspace, or ask the developer for the " //$NON-NLS-1$
+            + "output in the view Console."; //$NON-NLS-1$
     }
 
     /**
@@ -271,8 +318,8 @@ public class StartLaunchTool implements IMcpTool {
         if (modalShells == null) {
             return ""; //$NON-NLS-1$
         }
-        return " The test instance shows a modal dialog, which blocks the UI tools until it is closed (a sign-on is for the developer): " //$NON-NLS-1$
-            + modalShells + "."; //$NON-NLS-1$
+        return " The test instance shows a modal dialog, which blocks its other windows: " + modalShells //$NON-NLS-1$
+            + ". Operate or close it with the UI tools; a sign-on is for the developer."; //$NON-NLS-1$
     }
 
     /**
@@ -301,11 +348,12 @@ public class StartLaunchTool implements IMcpTool {
         return null;
     }
 
-    private static String debugNote(String aMode) {
+    static String debugNote(String aMode) {
         if (!MODE_DEBUG.equals(aMode)) {
             return ""; //$NON-NLS-1$
         }
-        return " Hot code replace takes over changed method bodies after get_problems; list_launches shows its result. After a change of " //$NON-NLS-1$
-            + "the class hierarchy, signatures or new fields JDT may fail and show a dialog in this RDi: then stop_launch and start_launch."; //$NON-NLS-1$
+        return " Hot code replace takes over changed method bodies after get_problems; list_launches shows its last result, which " //$NON-NLS-1$
+            + HOT_CODE_REPLACE_TEST + " After a change of the class hierarchy, signatures or new fields JDT may fail and show a dialog " //$NON-NLS-1$
+            + "in this RDi, which only the developer can answer."; //$NON-NLS-1$
     }
 }

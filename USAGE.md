@@ -255,8 +255,9 @@ and workspace an agent talks to. It has no arguments.
 
 ### Tools of other plug-ins
 
-Other RDi plug-ins can add tools to the server. Install them like any other plug-in and restart
-RDi; the agent sees them in a new session, e.g. as `mcp__rdi096__format_rpg`.
+Other RDi plug-ins can add tools, and instructions for the agent, to the server. Install them like
+any other plug-in and restart RDi; the agent sees them in a new session, e.g. as
+`mcp__rdi096__format_rpg`.
 
 | Tool | Plug-in | Content |
 |---|---|---|
@@ -283,6 +284,21 @@ them, but forwards every call to the running test instance - except the calls, t
 it -; the test instance reads its user interface and answers. So Claude Code needs only the entry
 of your RDi, e.g. `rdi096`, and a restart of the test instance needs no reconnect. The first line of the answer names the test
 instance.
+
+**Workflow.** The server tells the agent at the start of a session, how to test with the UI tools;
+no skill is needed. After a change of the user interface of a plug-in project of the workspace of
+this RDi, the agent asks you in your language, whether to test it - *Yes, this time*, *Yes, this
+session*, *No, not this time* or *No, not this session* - and which screenshots you want: *Per
+checked dialog* (the default), *None* or *After every step*. When you tell it to test, it does not
+ask. It then builds the projects with `get_problems`, starts a test instance with `start_launch`,
+opens and checks the new user interface, reads `ui_error_log` and reports the steps, the findings,
+the paths of the screenshots and what it could not check. A test instance, that it started, it
+stops at the end. A test instance, that runs already, keeps running; the agent asks you first,
+whether to restart it, to use it as it is (it may lack the change) or to skip the test. You answer
+the sign-on to the IBM i, native dialogs and password prompts yourself. When nobody can answer, e.g.
+in `claude -p`, the agent does not test. `workspace_info` lists only Java projects: for a plug-in
+project without Java code, e.g. one with help pages only, tell the agent to test. A changed text of
+the instructions reaches the agent in a new session, not in a running one.
 
 **ui_snapshot** returns the user interface as indented text: first the workbench (active shell,
 focus, perspective, views, editors with *dirty*, shells, an open native dialog), then the widget
@@ -326,6 +342,7 @@ instance is not brought to the front. The image of a shell has no title bar and 
 | `shell` | string | the active shell | reference or title of a shell |
 | `ref` | string | – | reference of a control instead of a shell; not together with `shell` |
 | `maxWidth` | integer | 1280 | wider images are scaled down to this width |
+| `returnImage` | boolean | true | `false` saves the image only and returns its path, e.g. for screenshots for you, that the agent need not see |
 
 **Actions** operate the test instance like a user. They send the events of the mouse and the
 keyboard to the widgets in the order, in which SWTBot sends them, without the mouse and the keyboard
@@ -363,6 +380,10 @@ File*, are no widgets: the snapshot only reports `native dialog open`, and the a
 until you close the dialog. When RDi is not in the foreground, the operating system shows
 no active shell; then the deepest visible shell counts as active, modal shells first.
 
+Most error texts of the UI tools and of the tools, that start and stop the test instance, end with a
+hint for the agent, what to do next, e.g. to check the result with `ui_snapshot` before it repeats
+an action, or to ask you.
+
 | Error | Meaning |
 |---|---|
 | `No test instance with the UI tools is running. ...` | start a test instance; the message names the launch configurations with `-Diagentbridge.uiTools=true` |
@@ -370,6 +391,7 @@ no active shell; then the deepest visible shell counts as active, modal shells f
 | `... does not accept connections yet - still starting?` | the test instance is still starting, or its server is not running |
 | `... did not answer within 30 s - stopped in the debugger? ...` | the test instance stops at a breakpoint, or the port of its launch configuration is the port of the RDi, in which you work |
 | `... rejected the token (HTTP 401) ...` | the launch configuration sets another token with `-Diagentbridge.token` |
+| `The workbench of the test instance has ended. ...`, `The display of the test instance has ended. ...`, `No shell of the test instance is visible. ...` or `The test instance has no workbench window. ...` | the test instance ends or is still starting; `list_launches` shows, whether it runs |
 | `UI thread busy for 10 s - ...` | a long operation, a thread stopped in the debugger or a native dialog blocks the user interface of the test instance |
 | `Ref w17 is unknown or outdated, take a new snapshot.` | the widget does not exist any more |
 | `Ref w17 now shows "..." instead of "..." - its viewer was refreshed. ...` | the viewer reuses its rows or items after a refresh; take a new snapshot |
@@ -391,7 +413,7 @@ tools run in the test instance, like the other UI tools.
 | Tool | Arguments | Content |
 |---|---|---|
 | `list_launches` | – | the running launches of the two types with type, mode, port of iAgentBridge, *UI tools* and start time, in debug mode also *stopped in the debugger* and the last result of hot code replace; a start, that still waits for a dialog of RDi; the launch configurations, that `start_launch` can start, test instances with the UI tools marked |
-| `start_launch` | `name`, `mode` (`run` or `debug`, default `run`), `timeoutSeconds` (180, at most 600) | starts the launch configuration `name`, e.g. `iAgentBridge (de)`, as it is saved. With `-Diagentbridge.port` in its VM arguments (also with a variable) it waits, until that port answers, checks, that the instance at the port has the workspace of the launch configuration, and names a modal dialog, that the test instance shows, e.g. the sign-on to the IBM i, which you answer yourself; without the port it checks, that the process runs. The time counts from the call |
+| `start_launch` | `name`, `mode` (`run` or `debug`, default `run`), `timeoutSeconds` (180, at most 600) | starts the launch configuration `name`, e.g. `iAgentBridge (de)`, as it is saved, but without a splash screen, which would take the focus from your work: it adds `-nosplash` to the program arguments, unless they contain it. With `-Diagentbridge.port` in its VM arguments (also with a variable) it waits, until that port answers, checks, that the instance at the port has the workspace of the launch configuration, and names a modal dialog, that the test instance shows, e.g. the sign-on to the IBM i, which you answer yourself; without the port it checks, that the process runs. The time counts from the call |
 | `stop_launch` | `name` (default: the only running test instance with the UI tools), `force` (false), `timeoutSeconds` (60, at most 600) | a test instance with the UI tools closes its workbench with `ui_close`, and the tool waits for its end; with unsaved changes it rejects and names them. Everything else ends with *Terminate*: without the UI tools, with `force: true`, stopped in the debugger, when its server does not answer or its port belongs to another process, and after `timeoutSeconds` |
 | `ui_close` | – | in the test instance: closes its workbench without a question. Open dialogs, e.g. the sign-on to the IBM i, it closes first like with *Cancel*. With unsaved changes in an editor or a view it rejects and names them. `stop_launch` calls it and waits for the end |
 | `ui_error_log` | `since` (`session` or a time like `2026-11-26T08:00:00`), `severity` (`error`, `warning` or `info`, default `warning`), `maxEntries` (20, at most 100) | in the test instance: the newest entries of its error log (`.metadata/.log`) since its start or since the time in the time zone of the computer, with their child entries (at most 20 per entry) and stack traces (at most 30 lines; messages at most 2000 characters), e.g. exceptions, that the user interface does not show. It answers also, while the UI thread is busy. It reads the current log only; the first line says, when earlier entries of the session are in a backup `.bak_*.log`. Failures of earlier actions come first, like with the other UI tools |
@@ -418,8 +440,9 @@ other call.
 **After a change** of a plug-in of the test instance: `get_problems` builds it, `stop_launch` and
 `start_launch` restart the test instance, then the UI tools check the change. In debug mode
 (`mode: debug`), hot code replace takes changed method bodies over at the build, without a restart;
-`list_launches` shows the result with its time, e.g. `hot code replace: succeeded at 10:15:02`. A
-change, that the virtual machine cannot replace, e.g. a new super class or interface, fails, and
+`list_launches` shows the result with its time, e.g. `hot code replace: succeeded at 10:15:02`; it
+may belong to an earlier build, so restart the test instance to test a change. A change, that the
+virtual machine cannot replace, e.g. a new super class or interface, fails, and
 JDT shows the dialog *Hot Code Replace Failed* in the RDi, in which you work: close it and restart
 the test instance. *Window > Preferences > Java > Debug*, group *Hot Code Replace*, turns this
 dialog and the one about obsolete methods off: *Show error when hot code replace fails*, *Show error when
@@ -443,11 +466,11 @@ no error.
 | `Projects of the launch have errors, ...` | fix them; `get_problems` shows them |
 | `Files of the launch have unsaved changes in an editor, ...` | save them in the RDi, in which you work |
 | `... runs already. ...` | stop the running launch with `stop_launch` first |
-| `Port 39196 of ... is in use by another process. ...` | another program, e.g. a test instance started by hand with another workspace, has the port; end it |
-| `... uses the workspace ..., which another process has locked. ...` | another instance runs with this workspace, e.g. a JUnit Plug-in Test with the same workspace; end it |
+| `Port 39196 of ... is in use by another process. ...` | another program, e.g. a test instance started by hand with another workspace, has the port; the agent stops it with `stop_launch` only, if it started it, otherwise it asks you to end it |
+| `... uses the workspace ..., which another process has locked. ...` | another instance runs with this workspace, e.g. a JUnit Plug-in Test with the same workspace; the agent stops it with `stop_launch` only, if it started it, otherwise it asks you to end it |
 | `RDi is probably waiting for an answer in a dialog: ...`, `A start of ... is still waiting ...` or `The start of ... still waits ...` | RDi shows a dialog for the start; answer it in the RDi, in which you work |
 | `RDi did not start ... (a dialog cancelled?).` | a dialog for the start was cancelled |
-| `The process of ... ended with exit code ...` | the launch ended during its start; the view *Console* shows its output |
+| `The process of ... ended with exit code ...` | the launch ended during its start; the view *Console* shows its output, the file `.metadata/.log` of its workspace its errors |
 | `... runs, but port ... did not answer within ...` | its server is turned off in its workspace (`iagentbridge.serverEnabled`), or it starts slowly; the launch keeps running |
 | `Unsaved changes in the test instance: ...` | save or revert them in the test instance, or use `force: true` |
 | `Several test instances with the UI tools run: ... Give 'name'.` | `stop_launch` needs `name` |

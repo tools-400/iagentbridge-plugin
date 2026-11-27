@@ -25,6 +25,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
 import de.tools400.iagentbridge.mcp.McpToolResult;
+import de.tools400.iagentbridge.ui.model.Hints;
 
 /**
  * Calls a tool of a test instance over HTTP: 'tools/call' with the same name
@@ -49,6 +50,18 @@ public final class ForwardingClient {
 
     private static final String PROTOCOL_VERSION = "2025-06-18"; //$NON-NLS-1$
     private static final int MAX_ERROR_BODY = 500;
+
+    /**
+     * The server of iAgentBridge answers a call, that is too large, with 413.
+     */
+    private static final String TOO_LARGE = "The arguments of the call are too large: send them in smaller parts, e.g. a shorter text with " //$NON-NLS-1$
+        + "ui_type or ui_lpex."; //$NON-NLS-1$
+
+    /**
+     * The server of iAgentBridge answers with 500, if it fails outside of a
+     * tool; it writes no entry to the error log then.
+     */
+    private static final String SERVER_FAILED = "Its server failed. " + Hints.CHECK_BEFORE_REPEATING; //$NON-NLS-1$
 
     private final int connectTimeoutMillis;
     private final int readTimeoutMillis;
@@ -138,15 +151,14 @@ public final class ForwardingClient {
                     + " rejected the token (HTTP 401). Does its launch configuration set another token with -Diagentbridge.token?")); //$NON-NLS-1$
             }
             if (status != HttpURLConnection.HTTP_OK) {
-                return new Response(Kind.REJECTED, McpToolResult.error("The test instance " + anInstance.describe() + " answered with HTTP " //$NON-NLS-1$ //$NON-NLS-2$
-                    + status + ": " + cut(read(connection.getErrorStream())))); //$NON-NLS-1$
+                return rejected(withBody("The test instance " + anInstance.describe() + " answered with HTTP " + status, //$NON-NLS-1$ //$NON-NLS-2$
+                    read(connection.getErrorStream())), statusHint(status));
             }
 
             String body = read(connection.getInputStream());
             JsonElement response = new JsonParser().parse(body);
             if (!response.isJsonObject()) {
-                return new Response(Kind.REJECTED,
-                    McpToolResult.error("The test instance " + anInstance.describe() + " answered with no JSON object: " + cut(body))); //$NON-NLS-1$ //$NON-NLS-2$
+                return rejected(withBody("The test instance " + anInstance.describe() + " answered with no JSON object", body), Hints.CHECK_PORT); //$NON-NLS-1$ //$NON-NLS-2$
             }
 
             return new Response(Kind.ANSWERED, ForwardedResult.toToolResult(response.getAsJsonObject(), anInstance));
@@ -159,13 +171,14 @@ public final class ForwardingClient {
             }
             return new Response(Kind.TIMEOUT,
                 McpToolResult.error("The test instance " + anInstance.describe() + " did not answer within " //$NON-NLS-1$ //$NON-NLS-2$
-                    + readTimeoutMillis / 1000 + " s - stopped in the debugger? If " + port //$NON-NLS-1$
-                    + " is the port of this RDi, correct -Diagentbridge.port of the launch configuration.")); //$NON-NLS-1$
+                    + readTimeoutMillis / 1000 + " s - stopped in the debugger? list_launches shows, whether it is. If " + port //$NON-NLS-1$
+                    + " is the port of this RDi, correct -Diagentbridge.port of the launch configuration. " + Hints.CHECK_BEFORE_REPEATING)); //$NON-NLS-1$
         } catch (IOException e) {
-            return new Response(Kind.BROKEN, McpToolResult.error("The call of the test instance " + anInstance.describe() + " failed: " + e)); //$NON-NLS-1$ //$NON-NLS-2$
+            return new Response(Kind.BROKEN,
+                McpToolResult.error(Hints.after("The call of the test instance " + anInstance.describe() + " failed: " + e, //$NON-NLS-1$ //$NON-NLS-2$
+                    Hints.CHECK_BEFORE_REPEATING)));
         } catch (JsonParseException e) {
-            return new Response(Kind.REJECTED,
-                McpToolResult.error("The test instance " + anInstance.describe() + " answered with invalid JSON: " + e.getMessage())); //$NON-NLS-1$ //$NON-NLS-2$
+            return rejected("The test instance " + anInstance.describe() + " answered with invalid JSON: " + e.getMessage(), Hints.CHECK_PORT); //$NON-NLS-1$ //$NON-NLS-2$
         } finally {
             if (connection != null) {
                 connection.disconnect();
@@ -173,8 +186,36 @@ public final class ForwardingClient {
         }
     }
 
+    /**
+     * Returns the outcome of a call, that the server rejected: the reason
+     * without the hint for the agent, so that stop_launch can give its own.
+     */
+    private static Response rejected(String aReason, String aHint) {
+        return new Response(Kind.REJECTED, McpToolResult.error(Hints.after(aReason, aHint)), aReason);
+    }
+
+    /**
+     * Returns the hint for an HTTP status: the server of iAgentBridge answers a
+     * call with 413 and 500 only, so other statuses come from another program.
+     */
+    private static String statusHint(int aStatus) {
+        switch (aStatus) {
+        case HttpURLConnection.HTTP_ENTITY_TOO_LARGE:
+            return TOO_LARGE;
+        case HttpURLConnection.HTTP_INTERNAL_ERROR:
+            return SERVER_FAILED;
+        default:
+            return Hints.CHECK_PORT;
+        }
+    }
+
+    private static String withBody(String aText, String aBody) {
+        return aBody.isEmpty() ? aText : aText + ": " + cut(aBody); //$NON-NLS-1$
+    }
+
     private static McpToolResult notAccepting(TestInstance anInstance) {
-        return McpToolResult.error("The test instance " + anInstance.describe() + " does not accept connections yet - still starting?"); //$NON-NLS-1$ //$NON-NLS-2$
+        return McpToolResult.error("The test instance " + anInstance.describe() + " does not accept connections yet - still starting? " //$NON-NLS-1$ //$NON-NLS-2$
+            + Hints.NOT_SENT);
     }
 
     /**
@@ -237,10 +278,29 @@ public final class ForwardingClient {
 
         private final Kind kind;
         private final McpToolResult result;
+        private final String reason;
 
-        Response(Kind aKind, McpToolResult aResult) {
+        /**
+         * Creates the outcome, whose reason is the text of the result.
+         *
+         * @param aKind - how the call ended
+         * @param aResult - the result
+         */
+        public Response(Kind aKind, McpToolResult aResult) {
+            this(aKind, aResult, aResult.getText());
+        }
+
+        /**
+         * Creates the outcome.
+         *
+         * @param aKind - how the call ended
+         * @param aResult - the result
+         * @param aReason - the reason without the hint for the agent
+         */
+        public Response(Kind aKind, McpToolResult aResult, String aReason) {
             kind = aKind;
             result = aResult;
+            reason = aReason;
         }
 
         public Kind getKind() {
@@ -249,6 +309,15 @@ public final class ForwardingClient {
 
         public McpToolResult getResult() {
             return result;
+        }
+
+        /**
+         * Returns, why the call failed, without the hint for the agent.
+         *
+         * @return the reason
+         */
+        public String getReason() {
+            return reason;
         }
     }
 }

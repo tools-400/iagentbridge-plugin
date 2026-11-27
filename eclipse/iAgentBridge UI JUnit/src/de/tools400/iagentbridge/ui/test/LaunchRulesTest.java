@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import de.tools400.iagentbridge.mcp.McpToolResult;
 import de.tools400.iagentbridge.ui.forwarding.ForwardingClient.Kind;
+import de.tools400.iagentbridge.ui.forwarding.ForwardingClient.Response;
 import de.tools400.iagentbridge.ui.forwarding.TestInstance;
 import de.tools400.iagentbridge.ui.launches.CloseResult;
 import de.tools400.iagentbridge.ui.launches.Identity;
@@ -75,7 +76,10 @@ public class LaunchRulesTest {
 
     @Test
     public void testStart_promptVariables() {
-        assertTrue(StartChecks.check(app(DE, VM_DE + " -Dx=${string_prompt:Value}"), none(), null, false).contains("${string_prompt")); //$NON-NLS-1$ //$NON-NLS-2$
+        String prompt = StartChecks.check(app(DE, VM_DE + " -Dx=${string_prompt:Value}"), none(), null, false); //$NON-NLS-1$
+        assertTrue(prompt, prompt.contains("${string_prompt")); //$NON-NLS-1$
+        assertTrue(prompt, prompt.endsWith(", which would open a dialog in this RDi. Ask the developer to start it by hand: the UI tools " //$NON-NLS-1$
+            + "cannot reach the RDi, in which the developer works.")); //$NON-NLS-1$
         assertTrue(
             StartChecks.check(new LaunchInfo(DE, LaunchInfo.TYPE_ECLIPSE_APPLICATION, VM_DE, "-pw ${password_prompt}", null, false, false), none(), //$NON-NLS-1$
                 null, false).contains("${password_prompt")); //$NON-NLS-1$
@@ -84,8 +88,10 @@ public class LaunchRulesTest {
 
     @Test
     public void testStart_clearWorkspace() {
-        assertTrue(StartChecks.check(new LaunchInfo(DE, LaunchInfo.TYPE_ECLIPSE_APPLICATION, VM_DE, "", null, true, true), none(), null, false) //$NON-NLS-1$
-            .contains("asks, whether its workspace shall be cleared")); //$NON-NLS-1$
+        String clear = StartChecks.check(new LaunchInfo(DE, LaunchInfo.TYPE_ECLIPSE_APPLICATION, VM_DE, "", null, true, true), none(), null, false); //$NON-NLS-1$
+        assertTrue(clear, clear.contains("asks, whether its workspace shall be cleared")); //$NON-NLS-1$
+        assertTrue(clear, clear.endsWith(" Ask the developer to start it by hand or to turn off the question in the launch configuration: " //$NON-NLS-1$
+            + "the UI tools cannot reach the RDi, in which the developer works.")); //$NON-NLS-1$
         assertNull(StartChecks.check(new LaunchInfo(DE, LaunchInfo.TYPE_ECLIPSE_APPLICATION, VM_DE, "", null, true, false), none(), null, false)); //$NON-NLS-1$
     }
 
@@ -100,9 +106,13 @@ public class LaunchRulesTest {
 
     @Test
     public void testStart_waitingAndPort() {
-        assertEquals("A start of \"iAgentBridge (de)\" is still waiting - probably for an answer in a dialog of RDi.", //$NON-NLS-1$
+        assertEquals(
+            "A start of \"iAgentBridge (de)\" is still waiting - probably for an answer in a dialog of RDi. Ask the developer to answer " //$NON-NLS-1$
+                + "the dialog: the UI tools cannot reach the RDi, in which the developer works.", //$NON-NLS-1$
             StartChecks.check(app(EN, VM_DE), none(), DE, false));
-        assertEquals("Port 39196 of \"iAgentBridge (en)\" is in use by another process. Stop it first.", //$NON-NLS-1$
+        assertEquals(
+            "Port 39196 of \"iAgentBridge (en)\" is in use by another process. list_launches shows, whether a launch uses it. Stop " //$NON-NLS-1$
+                + "such a launch with stop_launch only, if you started it; otherwise ask the developer to end it or the other process.", //$NON-NLS-1$
             StartChecks.check(app(EN, VM_DE), none(), null, true));
     }
 
@@ -125,6 +135,9 @@ public class LaunchRulesTest {
         StopDecision other = StopDecision.before(testInstance, false, Identity.Result.OTHER);
         assertEquals(Action.TERMINATE, other.getAction());
         assertTrue(other.getReason(), other.getReason().contains("belongs to another process")); //$NON-NLS-1$
+        assertEquals("its port belongs to another process, which keeps running. start_launch rejects a new start on this port, until that " //$NON-NLS-1$
+            + "process ends; list_launches shows, whether a launch uses it. Stop such a launch with stop_launch only, if you started it; " //$NON-NLS-1$
+            + "otherwise ask the developer to end it or the other process.", other.getReason()); //$NON-NLS-1$
         assertEquals(Action.CLOSE, StopDecision.before(testInstance, false, Identity.Result.SAME).getAction());
         StopDecision silent = StopDecision.before(testInstance, false, Identity.Result.NO_ANSWER);
         assertEquals(Action.TERMINATE, silent.getAction());
@@ -141,18 +154,17 @@ public class LaunchRulesTest {
     @Test
     public void testStop_afterClose() {
         assertEquals(Action.WAIT,
-            StopDecision.afterClose(Kind.ANSWERED, McpToolResult.success("Closing the workbench of the test instance.")).getAction()); //$NON-NLS-1$
-        assertEquals(Action.WAIT, StopDecision.afterClose(Kind.BROKEN, McpToolResult.error("failed")).getAction()); //$NON-NLS-1$
-        assertEquals(Action.REJECT,
-            StopDecision
-                .afterClose(Kind.ANSWERED,
-                    McpToolResult.error(
-                        "Test instance \"t\" (port 1):\nUnsaved changes in the test instance: editor a. Save or revert them, or stop it with force.")) //$NON-NLS-1$
-                .getAction());
+            StopDecision.afterClose(new Response(Kind.ANSWERED, McpToolResult.success("Closing the workbench of the test instance."))).getAction()); //$NON-NLS-1$
+        assertEquals(Action.WAIT, StopDecision.afterClose(new Response(Kind.BROKEN, McpToolResult.error("failed"))).getAction()); //$NON-NLS-1$
+        assertEquals(Action.REJECT, StopDecision
+            .afterClose(new Response(Kind.ANSWERED,
+                McpToolResult.error(
+                    "Test instance \"t\" (port 1):\nUnsaved changes in the test instance: editor a. Save or revert them, or stop it with force."))) //$NON-NLS-1$
+            .getAction());
         for (Kind kind : new Kind[] { Kind.REFUSED, Kind.TIMEOUT, Kind.REJECTED }) {
-            assertEquals(kind.name(), Action.TERMINATE, StopDecision.afterClose(kind, McpToolResult.error("x")).getAction()); //$NON-NLS-1$
+            assertEquals(kind.name(), Action.TERMINATE, StopDecision.afterClose(new Response(kind, McpToolResult.error("x"))).getAction()); //$NON-NLS-1$
         }
-        StopDecision busy = StopDecision.afterClose(Kind.ANSWERED, McpToolResult.error("UI thread busy for 10 s")); //$NON-NLS-1$
+        StopDecision busy = StopDecision.afterClose(new Response(Kind.ANSWERED, McpToolResult.error("UI thread busy for 10 s"))); //$NON-NLS-1$
         assertEquals(Action.TERMINATE, busy.getAction());
         assertTrue(busy.getReason(), busy.getReason().contains("UI thread busy for 10 s")); //$NON-NLS-1$
     }
@@ -178,7 +190,10 @@ public class LaunchRulesTest {
     @Test
     public void testStart_lockedWorkspace() {
         LaunchInfo info = app(DE, VM_DE);
-        assertEquals("\"iAgentBridge (de)\" uses the workspace C:\\w, which another process has locked. Stop that process first.", //$NON-NLS-1$
+        assertEquals(
+            "\"iAgentBridge (de)\" uses the workspace C:\\w, which another process has locked. list_launches shows, whether a " //$NON-NLS-1$
+                + "launch uses it. Stop such a launch with stop_launch only, if you started it; otherwise ask the developer to end it or the " //$NON-NLS-1$
+                + "other process.", //$NON-NLS-1$
             StartChecks.checkWorkspace(info, "C:\\w", true)); //$NON-NLS-1$
         assertNull(StartChecks.checkWorkspace(info, "C:\\w", false)); //$NON-NLS-1$
     }
@@ -207,13 +222,23 @@ public class LaunchRulesTest {
 
     @Test
     public void testStop_reasonInOwnWords() {
-        StopDecision refused = StopDecision.afterClose(Kind.REFUSED,
-            McpToolResult.error("The test instance \"t\" (port 1) does not accept connections yet - still starting?")); //$NON-NLS-1$
+        StopDecision refused = StopDecision.afterClose(
+            new Response(Kind.REFUSED, McpToolResult.error("The test instance \"t\" (port 1) does not accept connections yet - still starting?"))); //$NON-NLS-1$
         assertEquals(Action.TERMINATE, refused.getAction());
         assertFalse(refused.getReason(), refused.getReason().contains("still starting")); //$NON-NLS-1$
-        StopDecision timeout = StopDecision.afterClose(Kind.TIMEOUT, McpToolResult.error("The test instance \"t\" (port 1) did not answer " //$NON-NLS-1$
-            + "within 20 s - stopped in the debugger? If 1 is the port of this RDi, correct -Diagentbridge.port of the launch configuration.")); //$NON-NLS-1$
+        StopDecision timeout = StopDecision.afterClose(new Response(Kind.TIMEOUT,
+            McpToolResult.error("The test instance \"t\" (port 1) did " //$NON-NLS-1$
+                + "not answer within 20 s - stopped in the debugger? If 1 is the port of this RDi, correct -Diagentbridge.port of the launch " //$NON-NLS-1$
+                + "configuration."))); //$NON-NLS-1$
         assertFalse(timeout.getReason(), timeout.getReason().contains("-Diagentbridge.port")); //$NON-NLS-1$
+        // The port belongs to the instance, stop_launch has checked it: the
+        // hint of the forwarding about another program does not fit.
+        StopDecision rejected = StopDecision.afterClose(new Response(Kind.REJECTED,
+            McpToolResult.error("The test instance \"t\" (port 1) answered with HTTP 404. Check -Diagentbridge.port of its launch " //$NON-NLS-1$
+                + "configuration: the port may belong to another program."), //$NON-NLS-1$
+            "The test instance \"t\" (port 1) answered with HTTP 404")); //$NON-NLS-1$
+        assertEquals(Action.TERMINATE, rejected.getAction());
+        assertEquals("its server rejected ui_close: The test instance \"t\" (port 1) answered with HTTP 404", rejected.getReason()); //$NON-NLS-1$
     }
 
     @Test

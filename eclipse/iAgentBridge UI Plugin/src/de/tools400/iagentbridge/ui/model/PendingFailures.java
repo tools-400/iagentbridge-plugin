@@ -27,7 +27,7 @@ public final class PendingFailures {
      * @param aFailure - its exception
      */
     public synchronized void add(String anAction, Throwable aFailure) {
-        messages.add("The earlier action " + anAction + " failed: " + aFailure); //$NON-NLS-1$ //$NON-NLS-2$
+        messages.add(Hints.after("The earlier action " + anAction + " failed: " + aFailure, Hints.RAN_IN_PART)); //$NON-NLS-1$ //$NON-NLS-2$
     }
 
     /**

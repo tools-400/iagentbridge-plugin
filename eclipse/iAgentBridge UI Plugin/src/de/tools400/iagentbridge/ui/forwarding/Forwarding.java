@@ -15,6 +15,7 @@ import java.util.Properties;
 import com.google.gson.JsonObject;
 
 import de.tools400.iagentbridge.mcp.McpToolResult;
+import de.tools400.iagentbridge.ui.model.Hints;
 
 /**
  * Forwards a call of a UI tool from the RDi, in which the developer works, to
@@ -71,7 +72,10 @@ public final class Forwarding {
         try {
             token = token(instance, properties);
         } catch (IOException e) {
-            return McpToolResult.error("The token for the test instance " + instance.describe() + " could not be read: " + e.getMessage()); //$NON-NLS-1$ //$NON-NLS-2$
+            return McpToolResult.error(Hints.after(
+                "The token for the test instance " + instance.describe() + " could not be read: " //$NON-NLS-1$ //$NON-NLS-2$
+                    + e.getMessage(),
+                "Ask the developer to check the token file of iAgentBridge or -Diagentbridge.token of the launch configuration.")); //$NON-NLS-1$
         }
 
         return client.call(instance, token, aToolName, anArguments);

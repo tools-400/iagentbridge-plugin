@@ -77,7 +77,7 @@ public class UiMenuTool extends AbstractActionTool {
 
                 Shell shell = ShellPicker.activeShell(getDisplay());
                 if (shell == null) {
-                    throw new ActionRejectedException("No shell of the test instance is visible."); //$NON-NLS-1$
+                    throw new ActionRejectedException(NO_VISIBLE_SHELL);
                 }
                 Menu bar = shell.getMenuBar();
                 if (bar == null) {

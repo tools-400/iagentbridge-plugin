@@ -1,0 +1,23 @@
+UI tools: test a change of an Eclipse plug-in project of this RDi's workspace (see workspace_info)
+in a test instance - never in the RDi the developer works in. An Eclipse plug-in outside this
+workspace: do not test, say why.
+Rules: the developer handles sign-on, native dialogs and passwords - say what to do, wait.
+Never confirm "New Token"/"Neues Token" (no Yes, no ENTER). Ask before deleting or changing data on
+the IBM i. Follow the hints of error messages. After a code change restart the test instance; do
+not rely on hot code replace.
+After a UI change of such a plug-in ask, in the developer's language (not when told to test):
+test? "Yes, this time" / "Yes, this session" / "No, not this time" / "No, not this session";
+screenshots? "Per checked dialog" / "None" / "After every step" (first is default, same scope).
+Nobody can answer (no human, no question tool): do not test, say so.
+1. get_problems; report errors of projects you did not change, do not fix them.
+2. list_launches. A test instance you did not start: ask to restart it (same mode), use it as is
+   (started before the change - may lack it) or skip; it keeps running. Else start_launch one
+   (several: ask once). If the change does not show, its plug-in may be missing in the launch
+   configuration: tell the developer.
+3. Open with ui_command (command ID) or ui_menu (texts of its language); use the refs of the
+   latest snapshot; snapshot:false in chains.
+4. Check texts and states in the snapshot and ui_error_log (severity error) - no error only means
+   it ran.
+5. Revert only editors you changed; ask about other unsaved changes. stop_launch what you started.
+   Report steps, findings, screenshot paths (returnImage:false for "After every step"), what you
+   could not check, and an instance started before the change.

@@ -118,7 +118,8 @@ public class ForwardingClientTest {
         McpToolResult result = new ForwardingClient().call(instance(port), TOKEN, "ui_test", new JsonObject());
 
         assertTrue(result.isError());
-        assertEquals("The test instance \"t\" (port " + port + ") does not accept connections yet - still starting?", result.getText());
+        assertEquals("The test instance \"t\" (port " + port + ") does not accept connections yet - still starting? Nothing was sent: repeat it "
+            + "in a few seconds; list_launches shows, whether the test instance runs.", result.getText());
     }
 
     @Test
@@ -133,6 +134,11 @@ public class ForwardingClientTest {
 
         assertTrue(result.isError());
         assertTrue(result.getText(), result.getText().contains("did not answer within 1 s - stopped in the debugger?"));
+        assertEquals(
+            "The test instance \"t\" (port " + server.getPort() + ") did not answer within 1 s - stopped in the debugger? "
+                + "list_launches shows, whether it is. If " + server.getPort() + " is the port of this RDi, correct -Diagentbridge.port of the "
+                + "launch configuration. If it was an action, it may have run: check its result in a snapshot before you repeat it.",
+            result.getText());
     }
 
     @Test
@@ -205,6 +211,101 @@ public class ForwardingClientTest {
             assertTrue(result.isError());
             sleep(300);
             assertEquals("requests", 1, requests.get());
+            assertTrue(result.getText(),
+                result.getText().startsWith("The call of the test instance \"t\" (port " + socket.getLocalPort() + ") failed: "));
+            assertTrue(result.getText(),
+                result.getText().endsWith(". If it was an action, it may have run: check its result in a snapshot before you repeat it."));
+        }
+    }
+
+    /**
+     * Another program at the port: it answers with an HTTP error, with no JSON
+     * object or with invalid JSON.
+     */
+    @Test
+    public void testCall_otherProgramAtThePort() throws IOException {
+
+        String hint = ". Check -Diagentbridge.port of its launch configuration: the port may belong to another program.";
+        try (ServerSocket socket = new ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))) {
+            String answered = "The test instance \"t\" (port " + socket.getLocalPort() + ") answered with ";
+            assertEquals(answered + "HTTP 404" + hint, callAnswering(socket, "404 Not Found", ""));
+            assertEquals(answered + "HTTP 503: Busy" + hint, callAnswering(socket, "503 Service Unavailable", "Busy"));
+            assertEquals(answered + "no JSON object: [1]" + hint, callAnswering(socket, "200 OK", "[1]"));
+            String invalid = callAnswering(socket, "200 OK", "{");
+            assertTrue(invalid, invalid.startsWith(answered + "invalid JSON: "));
+            assertTrue(invalid, invalid.endsWith(hint));
+        }
+    }
+
+    /**
+     * The server of iAgentBridge in the test instance answers a call with 500,
+     * if it fails, and with 413, if the call is too large: the port is right.
+     */
+    @Test
+    public void testCall_statusOfTheServerOfTheTestInstance() throws IOException {
+
+        try (ServerSocket socket = new ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))) {
+            String answered = "The test instance \"t\" (port " + socket.getLocalPort() + ") answered with ";
+            assertEquals(answered + "HTTP 500: Internal error. Its server failed. If it was an action, it may have run: check its result in a "
+                + "snapshot before you repeat it.", callAnswering(socket, "500 Internal Server Error", "Internal error"));
+            assertEquals(answered + "HTTP 413. The arguments of the call are too large: send them in smaller parts, e.g. a shorter text with "
+                + "ui_type or ui_lpex.", callAnswering(socket, "413 Payload Too Large", ""));
+        }
+    }
+
+    /**
+     * The reason of a rejected call, without the hint for the agent, so that
+     * stop_launch can give its own.
+     */
+    @Test
+    public void testSend_reasonWithoutHint() throws IOException {
+
+        try (ServerSocket socket = new ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))) {
+            ForwardingClient.Response response = sendAnswering(socket, "404 Not Found", "");
+            assertEquals(ForwardingClient.Kind.REJECTED, response.getKind());
+            assertEquals("The test instance \"t\" (port " + socket.getLocalPort() + ") answered with HTTP 404", response.getReason());
+        }
+    }
+
+    /**
+     * Calls a tool at a socket, that answers the call with a status and a body,
+     * and returns the text of the error.
+     */
+    private static String callAnswering(ServerSocket aSocket, String aStatus, String aBody) {
+
+        McpToolResult result = sendAnswering(aSocket, aStatus, aBody).getResult();
+        assertTrue(result.getText(), result.isError());
+        return result.getText();
+    }
+
+    /**
+     * Sends a call to a socket, that answers it with a status and a body.
+     */
+    private static ForwardingClient.Response sendAnswering(ServerSocket aSocket, String aStatus, String aBody) {
+
+        Thread answerer = new Thread(() -> answer(aSocket, aStatus, aBody), "answer");
+        answerer.setDaemon(true);
+        answerer.start();
+
+        return new ForwardingClient(2000, 5000).send(instance(aSocket.getLocalPort()), TOKEN, "ui_test", new JsonObject());
+    }
+
+    /**
+     * Accepts one connection, reads the request and answers with a status and a
+     * body.
+     */
+    private static void answer(ServerSocket aSocket, String aStatus, String aBody) {
+        try (Socket connection = aSocket.accept()) {
+            readRequest(connection.getInputStream());
+            byte[] body = aBody.getBytes(StandardCharsets.UTF_8);
+            String head = "HTTP/1.1 " + aStatus + "\r\nContent-Type: application/json\r\nContent-Length: " + body.length
+                + "\r\nConnection: close\r\n\r\n";
+            OutputStream out = connection.getOutputStream();
+            out.write(head.getBytes(StandardCharsets.US_ASCII));
+            out.write(body);
+            out.flush();
+        } catch (IOException e) {
+            // The test fails on the result.
         }
     }
 

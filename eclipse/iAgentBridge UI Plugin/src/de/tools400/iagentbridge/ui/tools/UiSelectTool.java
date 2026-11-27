@@ -220,11 +220,21 @@ public class UiSelectTool extends AbstractActionTool {
                 WidgetEvents.selectTreeItem(items.get(i), i > 0);
             }
         } else {
-            throw new IllegalArgumentException(target.describe() + " has no entries to select. ui_select works on combos, lists, tables " //$NON-NLS-1$
-                + "and trees."); //$NON-NLS-1$
+            throw new IllegalArgumentException(noEntries(target.describe()));
         }
 
         return "Selected " + ItemFinder.listed(aValues) + " in " + target.describe() + "."; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+    }
+
+    /**
+     * Returns the text for a target without entries to select.
+     *
+     * @param aDescription - the description of the target
+     * @return text
+     */
+    static String noEntries(String aDescription) {
+        return aDescription + " has no entries to select. ui_select works on combos, lists, tables and trees. Use ui_type for text " //$NON-NLS-1$
+            + "fields, ui_click for buttons, tabs and links."; //$NON-NLS-1$
     }
 
     private static int indexOf(String[] anItems, String aValue, ActionTarget aTarget) {

@@ -81,6 +81,13 @@ public class ForwardedResultTest {
     public void testToToolResult_invalid() {
         assertTrue(ForwardedResult.toToolResult(parse("{\"jsonrpc\":\"2.0\",\"id\":1}"), INSTANCE).isError());
         assertTrue(ForwardedResult.toToolResult(parse("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}"), INSTANCE).isError());
+
+        String hint = ". Check -Diagentbridge.port of its launch configuration: the port may belong to another program.";
+        assertEquals("Test instance \"iAgentBridge (de)\" (port 39196):\nInvalid response: {\"jsonrpc\":\"2.0\",\"id\":1}" + hint,
+            ForwardedResult.toToolResult(parse("{\"jsonrpc\":\"2.0\",\"id\":1}"), INSTANCE).getText());
+        assertEquals("Test instance \"iAgentBridge (de)\" (port 39196):\nInvalid response without content: "
+            + "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}" + hint,
+            ForwardedResult.toToolResult(parse("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}"), INSTANCE).getText());
     }
 
     private static JsonObject parse(String aJson) {

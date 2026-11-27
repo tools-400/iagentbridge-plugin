@@ -17,6 +17,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import de.tools400.iagentbridge.mcp.McpToolResult;
+import de.tools400.iagentbridge.ui.model.Hints;
 
 /**
  * Turns the JSON-RPC response of a test instance to 'tools/call' into the
@@ -51,13 +52,13 @@ public final class ForwardedResult {
 
         JsonElement result = aResponse.get("result"); //$NON-NLS-1$
         if (result == null || !result.isJsonObject()) {
-            return McpToolResult.error(heading + "Invalid response: " + aResponse); //$NON-NLS-1$
+            return McpToolResult.error(Hints.after(heading + "Invalid response: " + aResponse, Hints.CHECK_PORT)); //$NON-NLS-1$
         }
 
         JsonObject resultObject = result.getAsJsonObject();
         JsonElement content = resultObject.get("content"); //$NON-NLS-1$
         if (content == null || !content.isJsonArray()) {
-            return McpToolResult.error(heading + "Invalid response without content: " + aResponse); //$NON-NLS-1$
+            return McpToolResult.error(Hints.after(heading + "Invalid response without content: " + aResponse, Hints.CHECK_PORT)); //$NON-NLS-1$
         }
 
         StringBuilder text = new StringBuilder(heading);

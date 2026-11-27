@@ -81,8 +81,7 @@ public class UiTypeTool extends AbstractActionTool {
             }
             if (!(widget instanceof Text || widget instanceof Combo || widget instanceof CCombo || widget instanceof StyledText
                 || widget instanceof Spinner)) {
-                throw new IllegalArgumentException(target.describe() + " is no field. ui_type works on text fields, editable combos, " //$NON-NLS-1$
-                    + "StyledText and spinners."); //$NON-NLS-1$
+                throw new IllegalArgumentException(noField(target.describe()));
             }
             if (!clear && !(widget instanceof Text || widget instanceof StyledText)) {
                 throw new IllegalArgumentException("'clear': false works on text fields and StyledText only, not on " + target.describe() + "."); //$NON-NLS-1$ //$NON-NLS-2$
@@ -107,6 +106,17 @@ public class UiTypeTool extends AbstractActionTool {
         };
     }
 
+    /**
+     * Returns the text for a target, that is no field.
+     *
+     * @param aDescription - the description of the target
+     * @return text
+     */
+    static String noField(String aDescription) {
+        return aDescription + " is no field. ui_type works on text fields, editable combos, StyledText and spinners. Use ui_click for " //$NON-NLS-1$
+            + "buttons, ui_select for lists, tables and trees."; //$NON-NLS-1$
+    }
+
     private static void checkEditable(ActionTarget aTarget) throws ActionRejectedException {
 
         Widget widget = aTarget.getWidget();
@@ -124,9 +134,20 @@ public class UiTypeTool extends AbstractActionTool {
         }
 
         if (!editable) {
-            throw new ActionRejectedException(aTarget.describe() + " is read-only" //$NON-NLS-1$
-                + (widget instanceof Combo || widget instanceof CCombo ? "; use ui_select." : ".")); //$NON-NLS-1$ //$NON-NLS-2$
+            throw new ActionRejectedException(readOnly(aTarget.describe(), widget instanceof Combo || widget instanceof CCombo));
         }
+    }
+
+    /**
+     * Returns the text for a field, that is read-only.
+     *
+     * @param aDescription - the description of the field
+     * @param aCombo - <code>true</code> for a combo
+     * @return text
+     */
+    static String readOnly(String aDescription, boolean aCombo) {
+        return aDescription + (aCombo ? " is read-only; use ui_select." //$NON-NLS-1$
+            : " is read-only. Its value is in the snapshot; ui_type works on editable fields only."); //$NON-NLS-1$
     }
 
     /**

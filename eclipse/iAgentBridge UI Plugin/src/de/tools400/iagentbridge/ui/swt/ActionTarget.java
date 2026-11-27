@@ -104,11 +104,22 @@ public final class ActionTarget {
         } else if (aWidget instanceof ToolItem) {
             control = ((ToolItem)aWidget).getParent();
         } else {
-            throw new IllegalArgumentException("Ref " + WidgetRefs.of(aWidget) + " is a " + aWidget.getClass().getSimpleName() //$NON-NLS-1$ //$NON-NLS-2$
-                + ", which no action can use."); //$NON-NLS-1$
+            throw new IllegalArgumentException(noActionTarget(WidgetRefs.of(aWidget), aWidget.getClass().getSimpleName()));
         }
 
         return new ActionTarget(aWidget, control);
+    }
+
+    /**
+     * Returns the text for a widget, that no action can use.
+     *
+     * @param aRef - the reference of the widget
+     * @param aType - the simple name of its class
+     * @return text
+     */
+    static String noActionTarget(String aRef, String aType) {
+        return "Ref " + aRef + " is a " + aType //$NON-NLS-1$ //$NON-NLS-2$
+            + ", which no action can use. Give the reference of a control, a row, an item, a tab or a tool item."; //$NON-NLS-1$
     }
 
     public Widget getWidget() {
@@ -138,10 +149,10 @@ public final class ActionTarget {
     public void check(boolean aTyping) throws ActionRejectedException {
 
         if (!visibility.test(control)) {
-            throw new ActionRejectedException(describe() + " is not visible."); //$NON-NLS-1$
+            throw new ActionRejectedException(notVisible(describe()));
         }
         if (!control.isEnabled() || widget instanceof ToolItem && !((ToolItem)widget).isEnabled()) {
-            throw new ActionRejectedException(describe() + " is disabled."); //$NON-NLS-1$
+            throw new ActionRejectedException(disabled(describe()));
         }
 
         String lock = ShellLock.reason(control);
@@ -153,6 +164,27 @@ public final class ActionTarget {
             throw new ActionRejectedException(describe() + " is a password field. The UI tools never type passwords; " //$NON-NLS-1$
                 + "the developer enters them by hand."); //$NON-NLS-1$
         }
+    }
+
+    /**
+     * Returns the text for a target, that is not visible.
+     *
+     * @param aDescription - the description of the target
+     * @return text
+     */
+    static String notVisible(String aDescription) {
+        return aDescription + " is not visible. Make it visible first, e.g. select its tab or expand its section; then take a new snapshot."; //$NON-NLS-1$
+    }
+
+    /**
+     * Returns the text for a target, that is disabled.
+     *
+     * @param aDescription - the description of the target
+     * @return text
+     */
+    static String disabled(String aDescription) {
+        return aDescription + " is disabled. Do first, what enables it, e.g. fill in a required field or select an element; then take a new " //$NON-NLS-1$
+            + "snapshot."; //$NON-NLS-1$
     }
 
     /**

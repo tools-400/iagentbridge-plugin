@@ -302,7 +302,7 @@ public final class WidgetEvents {
 
         Matcher matcher = LINK.matcher(aLink.getText());
         if (!matcher.find()) {
-            throw new IllegalArgumentException("The link has no hyperlink <a>...</a>."); //$NON-NLS-1$
+            throw new IllegalArgumentException(noHyperlink());
         }
         String text = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
 
@@ -316,6 +316,15 @@ public final class WidgetEvents {
         notify(aLink, SWT.MouseUp, mouseEvent(aLink, 1, SWT.BUTTON1, 1));
 
         return matcher.group(2);
+    }
+
+    /**
+     * Returns the text for a link without a hyperlink.
+     *
+     * @return text
+     */
+    static String noHyperlink() {
+        return "The link has no hyperlink <a>...</a>. Nothing was clicked; use another widget of the snapshot."; //$NON-NLS-1$
     }
 
     /**

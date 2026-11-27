@@ -75,6 +75,9 @@
             id="de.tools400.iagentbridge.ui.launch.list"
             class="de.tools400.iagentbridge.ui.tools.ListLaunchesTool">
       </tool>
+      <instructions
+            file="instructions/ui-tools.txt">
+      </instructions>
    </extension>
 
    <!--

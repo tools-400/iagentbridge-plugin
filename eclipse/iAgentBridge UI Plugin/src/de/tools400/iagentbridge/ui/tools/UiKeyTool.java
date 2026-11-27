@@ -109,10 +109,21 @@ public class UiKeyTool extends AbstractActionTool {
         String description = target.describe();
         boolean traversed = shell.traverse(SWT.TRAVERSE_ESCAPE);
         if (!traversed || !shell.isDisposed() && shell.isVisible()) {
-            throw new ActionRejectedException("ESC did not close " + description + "."); //$NON-NLS-1$ //$NON-NLS-2$
+            throw new ActionRejectedException(escapeFailed(description));
         }
 
         return "Pressed ESC: closed " + description + "."; //$NON-NLS-1$ //$NON-NLS-2$
+    }
+
+    /**
+     * Returns the text for a shell, that ESC did not close.
+     *
+     * @param aDescription - the description of the shell
+     * @return text
+     */
+    static String escapeFailed(String aDescription) {
+        return "ESC did not close " + aDescription + ". If it is a dialog, close it with its Cancel or Close button (ui_click); ESC closes " //$NON-NLS-1$ //$NON-NLS-2$
+            + "no workbench window."; //$NON-NLS-1$
     }
 
     /**
@@ -142,7 +153,7 @@ public class UiKeyTool extends AbstractActionTool {
 
         Shell shell = ShellPicker.activeShell(getDisplay());
         if (shell == null) {
-            throw new ActionRejectedException("No shell of the test instance is visible."); //$NON-NLS-1$
+            throw new ActionRejectedException(NO_VISIBLE_SHELL);
         }
 
         return shell;

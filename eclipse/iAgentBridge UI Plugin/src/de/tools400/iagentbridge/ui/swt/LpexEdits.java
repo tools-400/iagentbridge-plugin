@@ -27,9 +27,19 @@ public final class LpexEdits {
      */
     public static void checkWritable(LpexView aView) throws ActionRejectedException {
         if (aView.queryOn("readonly")) { //$NON-NLS-1$
-            throw new ActionRejectedException("The document \"" + aView.query("name") + "\" is read-only, e.g. opened for browsing; " //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
-                + "no text was inserted."); //$NON-NLS-1$
+            throw new ActionRejectedException(readOnly(aView.query("name"))); //$NON-NLS-1$
         }
+    }
+
+    /**
+     * Returns the text for a document, that is read-only.
+     *
+     * @param aName - the name of the document
+     * @return text
+     */
+    static String readOnly(String aName) {
+        return "The document \"" + aName + "\" is read-only; no text was inserted. If it was opened for browsing, open the source for editing " //$NON-NLS-1$ //$NON-NLS-2$
+            + "instead and repeat; otherwise ask the developer, why it is read-only."; //$NON-NLS-1$
     }
 
     /**

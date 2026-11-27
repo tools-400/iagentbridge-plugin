@@ -9,9 +9,11 @@
 package de.tools400.iagentbridge.ui.tools;
 
 import java.util.Locale;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.swt.widgets.Control;
@@ -97,6 +99,23 @@ public class UiWaitTool extends AbstractUiTool {
      * @throws Exception exception of a check
      */
     McpToolResult execute(JsonObject anArguments, Display aDisplay, Executor anUi) throws Exception {
+        return execute(anArguments, anUi, aCondition -> isMet(aCondition, aDisplay),
+            () -> Snapshots.take(aDisplay, null, null).write(Snapshots.DEFAULT_MAX_NODES, false));
+    }
+
+    /**
+     * Waits for the condition. The check and the snapshot are passed, so that a
+     * test runs the wait without a display.
+     *
+     * @param anArguments - arguments of the tool
+     * @param anUi - passes code to the UI thread
+     * @param aCheck - checks a condition in the UI thread
+     * @param aSnapshot - takes the snapshot in the UI thread
+     * @return result of the tool
+     * @throws Exception exception of a check
+     */
+    McpToolResult execute(JsonObject anArguments, Executor anUi, Function<WaitCondition, Boolean> aCheck, Callable<String> aSnapshot)
+        throws Exception {
 
         WaitCondition condition = WaitCondition.parse(anArguments);
 
@@ -106,9 +125,10 @@ public class UiWaitTool extends AbstractUiTool {
 
         boolean met;
         try {
-            met = await(condition, aDisplay, anUi, wait, total);
+            met = await(condition, aCheck, anUi, wait, total);
         } catch (UiThreadBusyException e) {
-            return McpToolResult.error(takePendingFailures() + "Waiting for " + condition.describe() + ": " + e.getMessage() + "."); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+            return McpToolResult.error(takePendingFailures() + "Waiting for " + condition.describe() + ": " + e.getMessage() //$NON-NLS-1$ //$NON-NLS-2$
+                + ". Try again later; ui_error_log answers also, while the UI thread is busy."); //$NON-NLS-1$
         } catch (RejectedExecutionException e) {
             return McpToolResult.error(takePendingFailures() + "Waiting for " + condition.describe() + " stopped. " + WORKBENCH_ENDED); //$NON-NLS-1$ //$NON-NLS-2$
         } catch (IllegalArgumentException e) {
@@ -116,28 +136,58 @@ public class UiWaitTool extends AbstractUiTool {
         }
 
         String seconds = String.format(Locale.ROOT, "%.1f", Double.valueOf((System.nanoTime() - start) / 1e9)); //$NON-NLS-1$
-        StringBuilder text = new StringBuilder();
-        if (met) {
-            text.append("Waited ").append(seconds).append(" s for ").append(condition.describe()).append('.'); //$NON-NLS-1$ //$NON-NLS-2$
-        } else {
-            text.append("Timeout after ").append(seconds).append(" s waiting for ").append(condition.describe()).append('.'); //$NON-NLS-1$ //$NON-NLS-2$
-        }
-
+        String snapshot;
+        boolean taken = false;
         try {
-            Snapshots.Snapshot snapshot = UiThread.read(anUi, total, () -> Snapshots.take(aDisplay, null, null));
-            text.append('\n').append(snapshot.write(Snapshots.DEFAULT_MAX_NODES, false));
+            snapshot = UiThread.read(anUi, total, aSnapshot);
+            taken = true;
         } catch (UiThreadBusyException e) {
-            text.append("\nNo snapshot: ").append(e.getMessage()).append('.'); //$NON-NLS-1$
+            snapshot = snapshotBusy(e.getMessage());
         } catch (RejectedExecutionException e) {
-            text.append('\n').append(WORKBENCH_ENDED);
+            snapshot = WORKBENCH_ENDED;
         } catch (Exception e) {
             // The wait is over: its result counts, not the snapshot.
-            text.append("\nNo snapshot: ").append(e).append('.'); //$NON-NLS-1$
+            snapshot = snapshotFailed(e);
         }
 
         // Taken now, so that they stay for the next tool, if a check fails.
-        String result = takePendingFailures() + text;
-        return met ? McpToolResult.success(result) : McpToolResult.error(result);
+        return result(takePendingFailures(), met, seconds, condition.describe(), snapshot, taken);
+    }
+
+    /**
+     * Returns the result of a wait, after the snapshot: the failures of earlier
+     * actions, a line about the condition and the snapshot or the text, why
+     * there is none.
+     *
+     * @param aPendingFailures - the failures of earlier actions, or an empty
+     *        string
+     * @param aMet - <code>true</code>, if the condition was met
+     * @param aSeconds - the seconds waited, e.g. '10.0'
+     * @param aCondition - the description of the condition
+     * @param aSnapshot - the snapshot, or the text, why there is none
+     * @param aTaken - <code>true</code>, if the snapshot was taken
+     * @return success, if the condition was met, else an error
+     */
+    static McpToolResult result(String aPendingFailures, boolean aMet, String aSeconds, String aCondition, String aSnapshot, boolean aTaken) {
+
+        String text = aPendingFailures + (aMet ? "Waited " + aSeconds + " s for " + aCondition + "." : timedOut(aSeconds, aCondition, aTaken)) + "\n" //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+            + aSnapshot;
+
+        return aMet ? McpToolResult.success(text) : McpToolResult.error(text);
+    }
+
+    /**
+     * Returns the text for a condition, that was not met in time.
+     *
+     * @param aSeconds - the seconds waited, e.g. '10.0'
+     * @param aCondition - the description of the condition
+     * @param aSnapshot - <code>true</code>, if the snapshot after the wait
+     *        follows
+     * @return text
+     */
+    static String timedOut(String aSeconds, String aCondition, boolean aSnapshot) {
+        return "Timeout after " + aSeconds + " s waiting for " + aCondition + "." + (aSnapshot ? " See the snapshot;" : "") //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
+            + " ui_error_log may show, why nothing happened."; //$NON-NLS-1$
     }
 
     /**
@@ -145,7 +195,8 @@ public class UiWaitTool extends AbstractUiTool {
      * grows with the time, that a check takes in the UI thread, so that the
      * checks never keep it busy for more than a third of the time.
      */
-    private static boolean await(WaitCondition aCondition, Display aDisplay, Executor anUi, Deadline aWait, Deadline aTotal) throws Exception {
+    private static boolean await(WaitCondition aCondition, Function<WaitCondition, Boolean> aCheck, Executor anUi, Deadline aWait, Deadline aTotal)
+        throws Exception {
 
         while (true) {
             long start = System.nanoTime();
@@ -153,7 +204,7 @@ public class UiWaitTool extends AbstractUiTool {
             if (aCondition.getKind() == Kind.JOBS_IDLE) {
                 met = Job.getJobManager().isIdle();
             } else {
-                met = UiThread.read(anUi, aTotal, () -> isMet(aCondition, aDisplay)).booleanValue();
+                met = UiThread.read(anUi, aTotal, () -> aCheck.apply(aCondition)).booleanValue();
             }
             long took = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
 

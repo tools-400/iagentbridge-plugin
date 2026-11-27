@@ -78,13 +78,13 @@ public class JournalTest {
         PendingFailures failures = new PendingFailures();
         assertEquals("", failures.take());
 
-        failures.add("ui_click w17", new IllegalStateException("listener failed"));
+        failures.add("ui_click w17", new IllegalStateException("listener failed."));
         failures.add("ui_command org.eclipse.ui.window.preferences", new NoClassDefFoundError("com/example/Missing"));
 
-        assertEquals(
-            "The earlier action ui_click w17 failed: java.lang.IllegalStateException: listener failed\n"
-                + "The earlier action ui_command org.eclipse.ui.window.preferences failed: java.lang.NoClassDefFoundError: com/example/Missing\n",
-            failures.take());
+        assertEquals("The earlier action ui_click w17 failed: java.lang.IllegalStateException: listener failed. The action may have run in "
+            + "part: check its result in a snapshot before you repeat it.\n"
+            + "The earlier action ui_command org.eclipse.ui.window.preferences failed: java.lang.NoClassDefFoundError: com/example/Missing. "
+            + "The action may have run in part: check its result in a snapshot before you repeat it.\n", failures.take());
         assertEquals("taken once", "", failures.take());
     }
 }

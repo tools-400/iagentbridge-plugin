@@ -10,6 +10,8 @@ package de.tools400.iagentbridge.ui.launches;
 
 import de.tools400.iagentbridge.mcp.McpToolResult;
 import de.tools400.iagentbridge.ui.forwarding.ForwardingClient.Kind;
+import de.tools400.iagentbridge.ui.forwarding.ForwardingClient.Response;
+import de.tools400.iagentbridge.ui.model.Hints;
 
 /**
  * The decisions of stop_launch, without Eclipse types: whether the test
@@ -63,7 +65,8 @@ public final class StopDecision {
         case SAME:
             return new StopDecision(Action.CLOSE, null);
         case OTHER:
-            return terminate("its port belongs to another process, which keeps running"); //$NON-NLS-1$
+            return terminate("its port belongs to another process, which keeps running. start_launch rejects a new start on this port, " //$NON-NLS-1$
+                + "until that process ends; " + Hints.FOREIGN_PROCESS); //$NON-NLS-1$
         case NO_ANSWER:
             return terminate("its server does not answer"); //$NON-NLS-1$
         default:
@@ -75,33 +78,35 @@ public final class StopDecision {
     /**
      * Decides after the call of ui_close.
      *
-     * @param aKind - how the call ended
-     * @param aResult - its result
+     * @param aResponse - how the call ended, with its result
      * @return WAIT for the end, REJECT because of unsaved changes, or TERMINATE
      *         with the reason
      */
-    public static StopDecision afterClose(Kind aKind, McpToolResult aResult) {
+    public static StopDecision afterClose(Response aResponse) {
 
-        if (aKind == Kind.BROKEN || aKind == Kind.ANSWERED && !aResult.isError()) {
+        Kind kind = aResponse.getKind();
+        McpToolResult result = aResponse.getResult();
+
+        if (kind == Kind.BROKEN || kind == Kind.ANSWERED && !result.isError()) {
             // The server may stop, before it answers, when the workbench
             // closes.
             return new StopDecision(Action.WAIT, null);
         }
-        if (aKind == Kind.ANSWERED && CloseResult.isUnsaved(aResult)) {
-            return new StopDecision(Action.REJECT, aResult.getText());
+        if (kind == Kind.ANSWERED && CloseResult.isUnsaved(result)) {
+            return new StopDecision(Action.REJECT, result.getText());
         }
 
-        // In own words: the texts of the forwarding, e.g. 'still starting?',
-        // do not fit, after its server answered workspace_info.
-        switch (aKind) {
+        // In own words: the texts and hints of the forwarding, e.g. 'still
+        // starting?', do not fit, after its server answered workspace_info.
+        switch (kind) {
         case REFUSED:
             return terminate("its server stopped accepting connections"); //$NON-NLS-1$
         case TIMEOUT:
             return terminate("ui_close did not answer in time"); //$NON-NLS-1$
         case REJECTED:
-            return terminate("its server rejected ui_close: " + withoutHeader(aResult.getText())); //$NON-NLS-1$
+            return terminate("its server rejected ui_close: " + aResponse.getReason()); //$NON-NLS-1$
         default:
-            return terminate("it could not close its workbench: " + withoutHeader(aResult.getText())); //$NON-NLS-1$
+            return terminate("it could not close its workbench: " + withoutHeader(result.getText())); //$NON-NLS-1$
         }
     }
 

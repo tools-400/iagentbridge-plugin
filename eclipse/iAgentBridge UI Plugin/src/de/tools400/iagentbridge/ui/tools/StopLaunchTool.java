@@ -31,6 +31,7 @@ import de.tools400.iagentbridge.ui.launches.RunningLaunch;
 import de.tools400.iagentbridge.ui.launches.StopDecision;
 import de.tools400.iagentbridge.ui.launches.StopDecision.Action;
 import de.tools400.iagentbridge.ui.model.Deadline;
+import de.tools400.iagentbridge.ui.model.Hints;
 
 /**
  * Tool 'stop_launch': ends a launch. A test instance with the UI tools closes
@@ -107,8 +108,19 @@ public class StopLaunchTool implements IMcpTool {
             }
             return terminated(launch, quoted + " did not end within " + timeoutSeconds + " s after closing its workbench and was terminated."); //$NON-NLS-1$ //$NON-NLS-2$
         default:
-            return terminated(launch, LaunchToolSupport.sentence("Terminated " + quoted + ", because " + decision.getReason())); //$NON-NLS-1$ //$NON-NLS-2$
+            return terminated(launch, terminatedBecause(quoted, decision.getReason()));
         }
+    }
+
+    /**
+     * Returns the text for a launch, that is terminated.
+     *
+     * @param aQuoted - the name of the launch configuration in quotes
+     * @param aReason - the reason of the decision
+     * @return text
+     */
+    static String terminatedBecause(String aQuoted, String aReason) {
+        return Hints.sentence("Terminated " + aQuoted + ", because " + aReason); //$NON-NLS-1$ //$NON-NLS-2$
     }
 
     /**
@@ -119,16 +131,29 @@ public class StopLaunchTool implements IMcpTool {
         if (waitForEnd(aLaunch, Deadline.inSeconds(TERMINATE_WAIT_SECONDS))) {
             return McpToolResult.success(aText);
         }
-        return McpToolResult.error(aText + " Its process still runs " + TERMINATE_WAIT_SECONDS + " s later; the view Debug of RDi shows it."); //$NON-NLS-1$ //$NON-NLS-2$
+        return McpToolResult.error(stillRuns(aText));
+    }
+
+    /**
+     * Returns the text for a launch, whose process still runs after
+     * terminate().
+     *
+     * @param aText - the text about the termination
+     * @return text
+     */
+    static String stillRuns(String aText) {
+        return aText + " Its process still runs " + TERMINATE_WAIT_SECONDS //$NON-NLS-1$
+            + " s later; the view Debug of RDi shows it. Ask the developer to end it there; list_launches shows, whether it runs."; //$NON-NLS-1$
     }
 
     private static StopDecision close(TestInstance anInstance) {
         try {
             Response response = new ForwardingClient(ForwardingClient.CONNECT_TIMEOUT_MILLIS, CLOSE_TIMEOUT_MILLIS).send(anInstance,
                 Forwarding.token(anInstance, System.getProperties()), "ui_close", new JsonObject()); //$NON-NLS-1$
-            return StopDecision.afterClose(response.getKind(), response.getResult());
+            return StopDecision.afterClose(response);
         } catch (IOException e) {
-            return StopDecision.afterClose(ForwardingClient.Kind.REJECTED, McpToolResult.error("the token could not be read: " + e.getMessage())); //$NON-NLS-1$
+            return StopDecision
+                .afterClose(new Response(ForwardingClient.Kind.REJECTED, McpToolResult.error("the token could not be read: " + e.getMessage()))); //$NON-NLS-1$
         }
     }
 
@@ -158,9 +183,20 @@ public class StopLaunchTool implements IMcpTool {
     private static String notRunning(String aName) {
         String waiting = LaunchStarter.getWaiting();
         if (waiting != null && (aName == null || aName.equals(waiting))) {
-            return "The start of \"" + waiting + "\" still waits for an answer in a dialog of RDi. Answer it there."; //$NON-NLS-1$ //$NON-NLS-2$
+            return startWaiting(waiting);
         }
         return aName == null ? "No test instance with the UI tools runs." : "No launch \"" + aName + "\" runs. list_launches lists them."; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+    }
+
+    /**
+     * Returns the text for a start, that still waits.
+     *
+     * @param aWaiting - the name of the launch configuration, whose start waits
+     * @return text
+     */
+    static String startWaiting(String aWaiting) {
+        return "The start of \"" + aWaiting + "\" still waits for an answer in a dialog of RDi. " + Hints.askDeveloper("answer the dialog") //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+            + " Then repeat stop_launch."; //$NON-NLS-1$
     }
 
     private static boolean waitForEnd(ILaunch aLaunch, Deadline aDeadline) throws InterruptedException {

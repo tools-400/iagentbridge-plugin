@@ -33,8 +33,9 @@ public class ListLaunchesTool implements IMcpTool {
 
     private static final String DESCRIPTION = "Lists the Eclipse Applications and JUnit Plug-in Tests, that run in the RDi, in which the " //$NON-NLS-1$
         + "developer works - name, mode, port of iAgentBridge, whether it runs the UI tools, start, and in debug mode whether a thread is " //$NON-NLS-1$
-        + "stopped in the debugger and the last result of hot code replace -, a start, that still waits for a dialog of RDi, and the " //$NON-NLS-1$
-        + "launch configurations, that start_launch can start."; //$NON-NLS-1$
+        + "stopped in the debugger and the last result of hot code replace, which may belong to an earlier build (to test a change, " //$NON-NLS-1$
+        + "restart the test instance) -, a start, that still waits for a dialog of RDi, and the launch configurations, that start_launch " //$NON-NLS-1$
+        + "can start."; //$NON-NLS-1$
 
     @Override
     public String getName() {

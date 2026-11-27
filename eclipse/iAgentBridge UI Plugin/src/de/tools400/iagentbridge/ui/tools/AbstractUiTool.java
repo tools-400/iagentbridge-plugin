@@ -22,6 +22,7 @@ import de.tools400.iagentbridge.ui.forwarding.Forwarding;
 import de.tools400.iagentbridge.ui.forwarding.ForwardingClient;
 import de.tools400.iagentbridge.ui.forwarding.TestInstance;
 import de.tools400.iagentbridge.ui.forwarding.TestInstanceFinder;
+import de.tools400.iagentbridge.ui.model.Hints;
 import de.tools400.iagentbridge.ui.model.PendingFailures;
 import de.tools400.iagentbridge.ui.preferences.UiPreferences;
 import de.tools400.iagentbridge.ui.swt.UiThreadBusyException;
@@ -41,7 +42,11 @@ public abstract class AbstractUiTool implements IMcpTool {
      * Text, when the display ended, e.g. after an action closed the last dialog
      * of a closing workbench
      */
-    protected static final String WORKBENCH_ENDED = "The workbench of the test instance has ended."; //$NON-NLS-1$
+    protected static final String WORKBENCH_ENDED = "The workbench of the test instance has ended. " + Hints.INSTANCE_RUNS; //$NON-NLS-1$
+
+    /** Text, when the test instance shows no shell */
+    protected static final String NO_VISIBLE_SHELL = "No shell of the test instance is visible. It may be starting or ending: " //$NON-NLS-1$
+        + Hints.INSTANCE_RUNS;
 
     private static final PendingFailures PENDING_FAILURES = new PendingFailures();
 
@@ -142,5 +147,26 @@ public abstract class AbstractUiTool implements IMcpTool {
     protected static McpToolResult busy(UiThreadBusyException anException) {
         return McpToolResult.error(anException.getMessage()
             + " - a long operation, a thread stopped in the debugger or a native dialog of Windows (e.g. a file dialog) may block it. Try again later."); //$NON-NLS-1$
+    }
+
+    /**
+     * Returns the text for a snapshot after an action or a wait, that the busy
+     * UI thread did not take.
+     *
+     * @param aMessage - the message of the UiThreadBusyException
+     * @return text
+     */
+    static String snapshotBusy(String aMessage) {
+        return Hints.after("No snapshot: " + aMessage, "Take one later with ui_snapshot."); //$NON-NLS-1$ //$NON-NLS-2$
+    }
+
+    /**
+     * Returns the text for a snapshot after an action or a wait, that failed.
+     *
+     * @param anException - the failure
+     * @return text
+     */
+    static String snapshotFailed(Exception anException) {
+        return Hints.after("No snapshot: " + anException, "Take one with ui_snapshot."); //$NON-NLS-1$ //$NON-NLS-2$
     }
 }

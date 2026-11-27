@@ -27,6 +27,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import de.tools400.iagentbridge.mcp.ToolArguments;
+import de.tools400.iagentbridge.ui.model.Hints;
 import de.tools400.iagentbridge.ui.swt.ActionRejectedException;
 import de.tools400.iagentbridge.ui.swt.ActionTarget;
 
@@ -76,7 +77,7 @@ public class UiCommandTool extends AbstractActionTool {
                 window = workbench.getWorkbenchWindows()[0];
             }
             if (window == null) {
-                throw new ActionRejectedException("The test instance has no workbench window."); //$NON-NLS-1$
+                throw new ActionRejectedException(noWorkbenchWindow());
             }
             ActionTarget.of(window.getShell()).check(false);
 
@@ -101,11 +102,31 @@ public class UiCommandTool extends AbstractActionTool {
                     + "Commands, that depend on the active part, e.g. Save, may be disabled, while the test instance is in the " //$NON-NLS-1$
                     + "background; in the LPEX editor use ui_key with Ctrl+S."); //$NON-NLS-1$
             } catch (NotHandledException e) {
-                throw new ActionRejectedException("The command '" + id + "' has no active handler in the current state of the workbench."); //$NON-NLS-1$ //$NON-NLS-2$
+                throw new ActionRejectedException(noActiveHandler(id));
             }
 
             return "Executed the command '" + id + "'" + (result == null ? "" : ", result: " + result) + "."; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
         };
+    }
+
+    /**
+     * Returns the text for a test instance without a workbench window.
+     *
+     * @return text
+     */
+    static String noWorkbenchWindow() {
+        return "The test instance has no workbench window. It may be starting or ending: " + Hints.INSTANCE_RUNS; //$NON-NLS-1$
+    }
+
+    /**
+     * Returns the text for a command without an active handler.
+     *
+     * @param anId - the ID of the command
+     * @return text
+     */
+    static String noActiveHandler(String anId) {
+        return "The command '" + anId + "' has no active handler in the current state of the workbench. Activate the part, that handles " //$NON-NLS-1$ //$NON-NLS-2$
+            + "it, e.g. with ui_click into it, then repeat."; //$NON-NLS-1$
     }
 
     /**

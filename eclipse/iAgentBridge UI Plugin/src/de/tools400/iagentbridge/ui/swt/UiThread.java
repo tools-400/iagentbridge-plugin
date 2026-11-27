@@ -23,6 +23,7 @@ import org.eclipse.swt.SWTException;
 import org.eclipse.swt.widgets.Display;
 
 import de.tools400.iagentbridge.ui.model.Deadline;
+import de.tools400.iagentbridge.ui.model.Hints;
 
 /**
  * Runs code in the UI thread without blocking the thread of the MCP server for
@@ -60,11 +61,20 @@ public final class UiThread {
                 aDisplay.asyncExec(aRunnable);
             } catch (SWTException e) {
                 if (e.code == SWT.ERROR_DEVICE_DISPOSED) {
-                    throw new RejectedExecutionException("The display has ended.", e); //$NON-NLS-1$
+                    throw new RejectedExecutionException(displayEnded(), e);
                 }
                 throw e;
             }
         };
+    }
+
+    /**
+     * Returns the text for the end of the display.
+     *
+     * @return text
+     */
+    static String displayEnded() {
+        return "The display of the test instance has ended. " + Hints.INSTANCE_RUNS; //$NON-NLS-1$
     }
 
     /**
